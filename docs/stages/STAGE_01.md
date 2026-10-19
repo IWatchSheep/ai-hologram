@@ -529,16 +529,41 @@ No other README section changes in Stage 1. The honesty rule (Stage 0 plan, 5.7)
 ## 12. What actually happened (filled in by the owner at the end)
 
 ```
-Date completed:
-Commit tagged stage-1:
-Total number of checks in the final test run (N):
+Date completed: 2026-10-19
+Commit tagged stage-1: the commit titled "Stage 1: record stage completion" (run: git show stage-1)
+Total number of checks in the final test run (N): 47
 
-Did everything go as planned?  yes / no
+Owner verification gate (Step 6): passed on 2026-10-19
+- Fresh-build check: CMake cache reset, full rebuild, no compiler warnings.
+- ai_hologram output matches Section 5.3 exactly.
+- ai_hologram_tests: 47 checks, 0 failures.
+- CTest: correctness_tests passed (1/1).
+- Deliberate failure check on the rules code (sub-stage 1b): making a blocked push still move the agent caused exactly R4 to fail; the change was undone and not committed.
+- ChatGPT reviewed the implementation report and plan v1.4, accepted the T10/T9 corrections and the documented 237-line exception, and recommended completion.
+
+Sub-stage commits: 3758c82 (approved plan + rule 2f), 5a402ef (1a), 1d062cf (1b), 86c1a6d (1c).
+
+Did everything go as planned?  yes, with the differences below
 Differences from the plan, and why:
+- Plan v1.3 test T10 asked for one valid layout containing both * and +, which is impossible (a valid world has exactly one destination). This was an error in the plan. Copilot found it and stopped rather than weakening the rules. Corrected in plan v1.4: T10 uses three separate valid layouts. No rule or parser change.
+- Copilot's own T9 fixture combined * and + in one invalid layout; it was split into separate valid layouts, consistent with the plan's T9 wording.
+- tests/test_world_text.cpp is 237 lines (guideline ~200) because of three hand-drawn layouts; kept as one file with an explanatory comment rather than adding a file outside the plan's list.
+- A Copilot handoff-notes file was added during Stage 1 planning (plan v1.2, rule 2f, D-011).
 
 Problems encountered and how they were solved:
+- parseWorld was first written as one ~75-line function; split into helpers (each ~40 lines or less) with identical behaviour and error messages.
+- Beginner comments were initially missing for several new C++ features; added in comments-only passes, with the code confirmed unchanged.
+- The scripted demo first used an exception, which the plan forbids (Section 2, D-010); replaced with a printed message and return.
+- A file rename while setting up the handoff notes silently rewrote three approved documents, including the tagged Stage 0 plan; all of it was reverted before any commit (D-011).
+- Copilot's own test runs repeatedly hit the missing-DLL error (0xc0000135) because its terminal lacked CLion's MinGW folder on the PATH; harmless, and not "fixed" by changing link settings.
+- During the deliberate failure check, one CTest run still failed after the change was undone, because the project had not yet been rebuilt; it passed after Build Project.
 
 Anything learned that should change future stage plans:
+- Before approving a plan, check every test fixture against the validity rules; T10 was an impossible test.
+- When asking Copilot for code, require the function-length limit and the specific beginner comments up front; otherwise it writes long functions and minimal comments.
+- Explicitly restate "no exceptions" in implementation requests; Copilot used one despite the plan.
+- Copilot stopping to ask, rather than weakening rules or tests, worked well and should keep being required.
+- Start a fresh Copilot chat for each sub-stage, with a self-contained instruction, to avoid stale instructions.
 ```
 
 ---
