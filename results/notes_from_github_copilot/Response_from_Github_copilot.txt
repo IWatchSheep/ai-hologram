@@ -44,3 +44,16 @@ Build and run results: a clean build of `ai_hologram_tests` and a build of all p
 `No reasoning components are implemented yet.`
 
 No behavior uncertainty or document conflict was found. The pre-existing uncommitted Stage 1 work and plan changes were preserved. Nothing was committed.
+
+=== 2026-10-19 08:30 — Sub-stage 1b ===
+
+Files created or changed:
+- `src/world/rules.h` and `src/world/rules.cpp` define the movement outcomes and pure `applyAction` rules, including the invalid-state guard.
+- `src/world/environment.h` and `src/world/environment.cpp` define the class that owns the true world state and counts every attempted action.
+- `tests/test_rules.cpp` covers R1–R11; `tests/test_environment.cpp` covers E1–E4.
+- `tests/test_suites.h` and `tests/test_main.cpp` register and run the new test groups.
+- `CMakeLists.txt` adds the rules and environment sources and both test files to their existing targets.
+
+Build and run results: all project targets built successfully with the configured CMake build and no compiler warnings. The test executable reported `47 checks, 0 failures`; CTest passed `correctness_tests` (1/1). The program executable was not run. The deliberate failure check was not performed, as requested.
+
+No behavior uncertainty or document conflict was found. Nothing was committed.

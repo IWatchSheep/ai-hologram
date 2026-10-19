@@ -10,5 +10,7 @@ namespace ai_hologram {
 
 void runProjectInfoTests(TestCounter& counter);
 void runWorldTextTests(TestCounter& counter);
+void runRulesTests(TestCounter& counter);
+void runEnvironmentTests(TestCounter& counter);
 
 }  // namespace ai_hologram
