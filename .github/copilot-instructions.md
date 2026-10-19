@@ -67,3 +67,4 @@ CHANGE SIZE
 - **2c.** Never select or change licensing terms, and never add licence headers or other licence files.
 - **2d.** Never rewrite Git history: no force-push, rebase, amending pushed commits, `reset --hard`, or deleting branches or tags. Never use `git add .` or `git add -A`; stage files by name.
 - **2e.** Treat `docs/chatgpt_reply.txt` as reference notes. If it conflicts with the brief or this plan, follow the brief and plan and point out the conflict to the owner.
+- **2f.** Exception to rule 2b: after finishing each piece of work, append a handoff note to `results/notes_from_github_copilot/Response_from_Github_copilot.txt`. Add to the end of the file only. Never delete, rewrite, or reorder earlier notes. This is the only owner file you may write to.
