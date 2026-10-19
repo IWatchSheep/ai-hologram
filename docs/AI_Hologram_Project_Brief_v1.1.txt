@@ -1,0 +1,1178 @@
+===============================================================================
+AI HOLOGRAM PROJECT -- PROJECT BRIEF
+Version 1.1 (revised after independent review; pending owner approval)
+Date: October 19, 2026
+Repository: ai-hologram
+Status: SPECIFICATION ONLY. No code has been written for this repository yet.
+===============================================================================
+
+This is a living document. It will grow as the project progresses. Each
+revision is recorded in Section 17 (Revision History). Older versions are
+preserved in Git history rather than deleted.
+
+
+-------------------------------------------------------------------------------
+HOW TO READ THIS DOCUMENT
+-------------------------------------------------------------------------------
+
+Every important statement in this brief is labelled with what kind of claim
+it is. This is deliberate: the previous project sometimes blurred the line
+between what we hoped, what we designed, and what we actually observed.
+
+  [FACT]         Established and checkable. Example: "The project uses C++17."
+  [OBSERVATION]  Something we actually saw happen in a past experiment.
+                 Observations come from the previous project unless stated
+                 otherwise, and were informal (not rigorously measured).
+  [PROPOSAL]     A design decision we intend to make. Can be changed by review.
+  [HYPOTHESIS]   An idea we want to test. NOT known to be true.
+  [OPEN]         A question we do not yet know how to answer.
+
+Rule: nothing labelled [HYPOTHESIS] or [OPEN] may be described anywhere in the
+repository (code comments, README, commit messages) as an achieved capability.
+
+
+-------------------------------------------------------------------------------
+TABLE OF CONTENTS
+-------------------------------------------------------------------------------
+
+  1.  Vision and Purpose
+  2.  The Hologram and Perspective Concept
+  3.  The Two-Agent Reasoning Architecture
+  4.  How the Agents Communicate, Disagree, Verify, and Correct
+  5.  Long-Term Idea: Independent Systems and Agent Groups
+  6.  Lessons From the Previous Project
+  7.  Open Research Questions
+  8.  C++ Development Principles
+  9.  Roles: The Owner, Claude, ChatGPT, and GitHub Copilot
+  10. Incremental Development Roadmap
+  11. Experiment 1: Design and Control Conditions
+  12. Testing, Debugging, Documenting, and Preserving Results
+  13. GitHub Version Control and Documentation Practices
+  14. Stage Completion Criteria
+  15. Instructions for GitHub Copilot
+  16. Glossary
+  17. Revision History
+
+
+===============================================================================
+1. VISION AND PURPOSE
+===============================================================================
+
+1.1 The core idea
+
+[FACT] This project investigates an alternative approach to artificial
+reasoning that does NOT use a large language model as its central reasoning
+mechanism.
+
+[PROPOSAL] The system should never simply generate a complete plan and assume
+it will work. Instead it repeatedly:
+
+    1. Looks at the current situation.
+    2. Predicts what should happen if it takes the next step.
+    3. Takes one controlled step.
+    4. Observes what actually happened.
+    5. Compares the PREDICTED state with the OBSERVED state.
+    6. If they disagree, investigates why and corrects its reasoning.
+
+[PROPOSAL] The relationship between the predicted state and the observed
+state is the central object of study. A disagreement between them is not just
+a failure -- it is INFORMATION that tells the system something about its own
+understanding.
+
+1.2 Purpose of the project
+
+[PROPOSAL] The project has three purposes:
+
+  a) Research: test, honestly and reproducibly, whether incremental
+     reasoning, multiple perspectives, temporal-spatial understanding, and
+     reciprocal error correction provide a useful foundation for AI.
+  b) Learning: the owner is learning C++. The code must be understandable,
+     and the reasons behind it must be documented.
+  c) Openness: anyone reading the GitHub history should be able to follow the
+     project from its first commit -- including mistakes, failed hypotheses,
+     and changes of direction.
+
+1.3 What success means
+
+[PROPOSAL] Success is NOT "the two-agent system wins." Success is a set of
+clearly designed experiments whose results -- positive, negative, or
+identical -- are recorded honestly. A well-documented negative result is a
+successful research outcome.
+
+
+===============================================================================
+2. THE HOLOGRAM AND PERSPECTIVE CONCEPT
+===============================================================================
+
+2.1 Where the idea came from
+
+[FACT] The idea came from thinking about holograms, reflections, and changing
+viewpoints. A computer that renders a 3D scene calculates what should appear
+from a particular viewpoint. When the viewpoint changes, the rendered image
+must change in a predictable, consistent way.
+
+2.2 What we take from it
+
+[PROPOSAL] The useful principle is:
+
+    ONE underlying reality can be viewed from SEVERAL perspectives.
+    Each perspective produces a different representation.
+    All valid perspectives must be CONSISTENT with each other and with
+    what is actually observed.
+    When two perspectives (or a perspective and an observation) disagree,
+    something in the system's understanding is wrong -- and the shape of
+    the disagreement can point toward what is wrong.
+
+Examples of "perspectives" in this project:
+  - The immediate, local view: "what is directly around me right now and
+    what will my next action do?"
+  - The temporal view: "how does this step fit into what happened before and
+    what must happen afterwards?"
+  - The spatial view: "how does this position relate to the whole
+    environment, the goal, and the obstacles?"
+  - The predicted view versus the observed view.
+
+2.3 What we are NOT assuming
+
+[PROPOSAL] The hologram is a RESEARCH INSPIRATION, not a technology to be
+implemented literally. We will not simulate optics or interference patterns
+unless an experiment shows a reason to.
+
+[OPEN] Which mathematical representations are actually useful? Candidates to
+investigate later (none are adopted yet):
+  - Coordinate transformations between frames of reference (simple and
+    well-understood; a natural first choice).
+  - Projections of a full state onto partial views (what each agent "sees").
+  - Consistency checks / constraint satisfaction between views.
+  - Distributed vector representations. [FACT] There is existing research
+    literature on "Holographic Reduced Representations" and other "vector
+    symbolic architectures," which encode structured information in
+    high-dimensional vectors. We should read this literature before
+    inventing our own version, and cite it if we use it.
+
+[HYPOTHESIS] Representing reasoning as multiple consistent perspectives on a
+shared state makes errors easier to detect and localise than a single view.
+This is untested.
+
+
+===============================================================================
+3. THE TWO-AGENT REASONING ARCHITECTURE
+===============================================================================
+
+This section was misunderstood in the previous project. Read it carefully.
+
+3.1 The two agents
+
+[PROPOSAL]
+
+  AGENT 1 -- INCREMENTAL REASONING
+    Emphasis: individual actions and the immediate progression of the task.
+    - Examines the current situation.
+    - Proposes and evaluates the next step.
+    - Predicts the immediate result of that step.
+    - Ensures progress happens in small, controlled increments.
+    - CAN ALSO reason about the larger task, and CAN detect mistakes made by
+      Agent 2.
+
+  AGENT 2 -- TEMPORAL-SPATIAL REASONING
+    Emphasis: relationships across time, space, actions, and consequences.
+    - Considers how a step relates to the whole problem.
+    - Tracks what happened previously and what may happen afterwards.
+    - Looks for consequences several steps ahead (e.g. "this move will
+      trap the object against a wall").
+    - CAN ALSO understand individual steps, and CAN detect mistakes made by
+      Agent 1.
+
+3.2 The essential principle: overlap, not division
+
+[PROPOSAL] The agents have DIFFERENT EMPHASIS but OVERLAPPING ABILITIES.
+
+    WRONG model (what went wrong before):
+        Agent 1 does only steps. Agent 2 does only planning.
+        Each trusts the other within its own territory.
+
+    RIGHT model (what this project intends):
+        Both agents can reason about steps AND about the larger picture.
+        Each concentrates on its own emphasis, but each also checks the
+        other's work.
+        Neither agent is assumed correct because of its role.
+
+[PROPOSAL] Rules of the relationship:
+  R1. Neither agent has authority over the other by default.
+  R2. An objection from one agent is a CLAIM to investigate, not a verdict.
+  R3. Agreement between agents is NOT proof of correctness (they may share
+      the same mistaken belief).
+  R4. Disagreements are resolved by EVIDENCE (observation, a safe test, or
+      recorded history), not by which agent raised them.
+  R5. Every proposed correction must be verified before it is accepted.
+
+3.3 Why the agents should differ in method, not just in label
+
+[HYPOTHESIS] Two agents built from identical code with identical information
+will tend to make the same mistakes, so they add little independent error
+detection. Agents that reason by genuinely different methods may catch each
+other's errors more often.
+
+[PROPOSAL] Therefore, in the experiments, Agent 1 and Agent 2 should use
+different internal methods where practical:
+  - Agent 1: local, step-by-step prediction (e.g. "if I push east, the
+    object moves one cell east, unless something blocks it").
+  - Agent 2: a time-extended model (e.g. a short look-ahead search or a
+    record of recent trajectory) used to check whether a step makes sense
+    in context.
+Experiment 1 includes a control that tests whether this difference matters
+(Section 11, condition C2).
+
+
+===============================================================================
+4. HOW THE AGENTS COMMUNICATE, DISAGREE, VERIFY, AND CORRECT
+===============================================================================
+
+4.1 Communication
+
+[PROPOSAL] Agents communicate only through explicit, logged MESSAGES. No
+agent reads or changes the other's internal data directly. This makes every
+interaction visible and debuggable.
+
+Initial message types (simple C++ structs, no networking):
+
+  PROPOSAL      "I propose action A. I predict state S afterwards."
+  PREDICTION    "Independently, I predict action A leads to state S'."
+  OBJECTION     "I disagree with X, because of evidence E."
+  TEST_REQUEST  "We can settle this by doing / checking T."
+  TEST_RESULT   "T was done; the result was R."
+  RESOLUTION    "Disagreement D is resolved as follows, based on R."
+  BELIEF_UPDATE "I have changed belief B to B', because of R."
+  SAFE_STOP     "I recommend taking NO world action now, because of D."
+                (Added in v1.1. See Section 4.2, step 4b.)
+
+Every message records: which agent sent it, the step number, and the
+evidence it refers to.
+
+4.2 The reasoning cycle (one step)
+
+[PROPOSAL]
+
+  1. OBSERVE     Both agents receive the same observation of the world.
+  2. PROPOSE     Agent 1 proposes the next action and predicts its result.
+  3. REVIEW      Agent 2 reviews the proposal against the larger context and
+                 makes its own prediction.
+                 (Agent 2 may also propose; Agent 1 then reviews.)
+  4. COMPARE     Predictions are compared with each other.
+       - If they agree: go to 5.
+       - If they disagree: go to 4a.
+  4a. INVESTIGATE  The disagreement is examined:
+       - Which beliefs produced the two predictions?
+       - Is there evidence (history, current observation) that settles it?
+       - If not, is there a SAFE, low-cost test (e.g. an action whose
+         consequences are reversible or harmless)?
+       - If still unresolved: go to 4b.
+  4b. UNRESOLVED DISAGREEMENT  (revised in v1.1)
+       Acting is not always better than not acting. The system chooses
+       between two options and records which one it chose and why:
+       - CAUTIOUS ACTION: if an action exists that BOTH agents predict is
+         safe (no trap, no irreversible loss, consistent with both
+         beliefs), it may be taken.
+       - SAFE STOP: if no action is judged safe by both agents, the system
+         takes NO world action. A safe stop is a legitimate, logged outcome,
+         not a failure of the software. During a safe stop the agents may
+         re-examine beliefs and history, but must not change the world.
+       Rules for safe stops:
+       - Either agent may request a SAFE_STOP. A stop request is a claim
+         like any other (Rule R2): it must state the disagreement and the
+         risk it is avoiding.
+       - A run may contain several stops, but a maximum stop limit is set
+         in each experiment plan, so the system cannot "succeed" at avoiding
+         errors simply by never acting.
+       - If the limit is reached, the run ends as "STOPPED -- UNRESOLVED,"
+         which is reported separately from success and from failure.
+  5. ACT         Exactly one action is executed in the environment
+                 (skipped if a safe stop was chosen).
+  6. OBSERVE     The actual result is observed.
+  7. CHECK       The observation is compared with BOTH agents' predictions.
+       - A failed prediction is a MISMATCH. A mismatch shows that something
+         in the chain "belief -> reasoning -> prediction -> observation" is
+         wrong, but does not by itself say WHICH link. See Section 4.4.
+  8. CORRECT     A proposed correction is made and VERIFIED in two parts
+                 (revised in v1.1; see Section 4.5). Only corrections that
+                 pass verification are kept.
+  9. LOG         Everything above is recorded.
+
+4.3 Important properties
+
+[PROPOSAL]
+  - An agent that detects an error is not automatically right. Step 4a and
+    step 8 exist precisely to test the detecting agent too.
+  - "Both agents agreed" is logged, but is never treated as proof.
+  - The observation from the real environment is the final evidence. Agents
+    may disagree with each other; they may not overrule the observation.
+  - [OPEN] What should happen if the observation itself is noisy or
+    incomplete? Not addressed in Experiment 1, where observation is exact.
+    (See Section 4.4: the architecture keeps room for this.)
+
+4.4 Where a mismatch can come from  (added in v1.1)
+
+[PROPOSAL] A mismatch between prediction and observation does NOT
+automatically mean an agent's reasoning is wrong. The architecture keeps
+these possible sources separate, even when an experiment rules some out:
+
+  S1. REASONING ERROR    The agent's belief was right, but it reasoned
+                         from it incorrectly.
+  S2. BELIEF ERROR       The agent's stored belief about the world was
+                         wrong (e.g. a wall in the wrong place).
+  S3. MODEL ERROR        The agent's understanding of how the world WORKS
+                         is incomplete or wrong (e.g. an unknown rule).
+  S4. OBSERVATION ERROR  The observation itself was wrong, noisy, or
+                         incomplete.
+  S5. UNKNOWN            The evidence does not yet distinguish the sources.
+
+Rules:
+  - Every mismatch record includes a "suspected source" field (S1-S5) and
+    the evidence for it. "UNKNOWN" is an honest and allowed answer.
+  - An agent must not label a mismatch as the OTHER agent's reasoning error
+    (S1) unless it can show the evidence that rules out S2-S4.
+  - In Experiment 1, observations are exact and the world rules are fully
+    known, so S3 and S4 should not occur. [PROPOSAL] The code still
+    represents them, and any mismatch classified as S3 or S4 in Experiment 1
+    is treated as a sign of a BUG in the experiment, to be investigated.
+  - In Experiment 1, the experimenter's ground truth (which fault was
+    injected, and where) is used to score whether the agents' "suspected
+    source" was correct. The agents themselves never see this ground truth.
+
+[OPEN] How to distinguish S2 from S3, and S4 from everything else, when
+observations are imperfect. Deferred to later experiments (Q9).
+
+4.5 Verifying a correction  (added in v1.1)
+
+[PROPOSAL] Explaining past observations is necessary but NOT sufficient:
+a correction can be adjusted to fit the past and still be wrong. A
+correction therefore passes two checks before it is accepted.
+
+  V1. CONSISTENCY  Does the corrected belief explain ALL the observations
+                   recorded so far (not just the one that caused the
+                   mismatch)?
+  V2. INDEPENDENT TEST  Does the corrected belief correctly predict
+                   something it was NOT built from? In order of preference:
+                   a) a FUTURE observation: the corrected belief makes a
+                      prediction before the next step, and that prediction
+                      is checked against what then happens;
+                   b) a held-out observation: a recorded observation that
+                      was deliberately not used when forming the correction;
+                   c) a cross-check by the OTHER agent, which predicts the
+                      same situation using its own method.
+                   Option (c) is the weakest, because the two agents may
+                   share a mistake (Rule R3).
+
+  Status of a correction:
+    PROPOSED     -> made, not yet checked.
+    CONSISTENT   -> passed V1 only. May be used, but is marked provisional.
+    VERIFIED     -> passed V1 and V2.
+    REJECTED     -> failed V1 or V2. The old belief is restored, or marked
+                    UNKNOWN if the old belief is also known to be wrong.
+
+  - A provisional correction that later fails a prediction is rejected,
+    and the rejection is logged.
+  - Measurements in Experiment 1 report CONSISTENT and VERIFIED corrections
+    separately, so we can see whether V2 catches corrections that V1 alone
+    would have accepted.
+
+[HYPOTHESIS] Requiring an independent test (V2) reduces the number of wrong
+corrections that are accepted, at the cost of slower correction. Untested.
+
+
+===============================================================================
+5. LONG-TERM IDEA: INDEPENDENT SYSTEMS AND AGENT GROUPS
+===============================================================================
+
+[PROPOSAL -- NOT FOR IMPLEMENTATION NOW] The long-term vision:
+
+  - A SYSTEM is a self-contained unit containing both reasoning
+    capabilities (incremental and temporal-spatial). A system can operate
+    on its own.
+  - Under suitable conditions, agents from different systems may form
+    TEMPORARY GROUPS with agents that perform similar functions, to:
+      * investigate difficult problems,
+      * compensate for a weak or unavailable component,
+      * compare different solutions to the same problem.
+  - Agents doing similar work should NOT necessarily use identical methods,
+    because different methods may catch errors identical methods miss.
+
+[HYPOTHESIS] Groups of methodologically diverse agents detect more errors
+than groups of identical agents. Untested.
+
+[OBSERVATION] In the previous project, adding agents did not automatically
+add independent evidence (see Lesson 4). Group arrangements must therefore
+be justified by experiment, not assumed to help.
+
+[PROPOSAL] Agent groups are not considered until Experiment 1 has been
+completed and its results reviewed (Roadmap Stage 9+).
+
+
+===============================================================================
+6. LESSONS FROM THE PREVIOUS PROJECT
+===============================================================================
+
+[FACT] The previous CLion project ("untitled") has been stopped. No code is
+carried over. Only these lessons are carried over.
+
+[OBSERVATION] (informal, from the previous project)
+
+  L1.  A larger program does not necessarily represent the intended idea
+       more accurately.
+  L2.  Two separate agents do not automatically produce better reasoning
+       than one.
+  L3.  Giving each agent a completely exclusive responsibility can prevent
+       the reciprocal error correction that is central to this project.
+  L4.  Additional agents do not necessarily provide independent evidence.
+  L5.  Two agents agreeing does not prove they are correct.
+  L6.  A proposed error correction must be verified, not merely accepted.
+  L7.  Passing tests does not necessarily mean the tests measure the intended
+       research question.
+  L8.  Predicted outcomes must be kept separate from actual findings.
+  L9.  Small, isolated experiments are easier to understand, debug, compare,
+       and improve.
+  L10. Clear design documentation is needed, and must stay understandable as
+       the implementation grows.
+
+[PROPOSAL] How this brief responds to each lesson:
+
+  L1  -> Small stages; each stage must be justified (Sections 10, 14).
+  L2  -> Experiment 1 compares against a COMPETENT single agent (Section 11).
+  L3  -> Overlapping abilities are a core rule (Section 3.2); an
+         exclusive-roles condition is tested as a control (C4).
+  L4  -> A "two identical copies" control (C2) measures this directly.
+  L5  -> Agreement is never treated as proof (Rule R3).
+  L6  -> Two-part correction verification: consistency plus an independent
+         test (Section 4.5).
+  L7  -> Two kinds of tests: correctness tests and research measurements
+         (Section 12).
+  L8  -> Labels [FACT]/[OBSERVATION]/[HYPOTHESIS] and the "expected vs
+         observed" rule in every experiment record.
+  L9  -> One hypothesis per experiment.
+  L10 -> This living brief plus a decision log (Section 13).
+
+
+===============================================================================
+7. OPEN RESEARCH QUESTIONS
+===============================================================================
+
+Main question:
+  Q0. Can incremental reasoning, multiple perspectives, temporal-spatial
+      understanding, and reciprocal error correction provide a useful
+      foundation for artificial intelligence?
+
+Questions small enough to test:
+  Q1. Under equal information and equal computational budget, does a
+      two-agent overlapping system detect more internal reasoning errors
+      than a competent single agent? (Experiment 1)
+  Q2. Does it produce fewer FALSE alarms, or more?
+  Q3. Is any benefit due to the two-agent STRUCTURE, or merely to doing
+      more checking? (Controlled by equal budgets.)
+  Q4. Is any benefit due to DIFFERENT METHODS, or just to having two
+      copies? (Control C2.)
+  Q5. Does overlapping responsibility outperform exclusive responsibility?
+      (Control C4.)
+  Q6. When the agents disagree, how often is the objecting agent right?
+  Q7. Which kinds of errors does each agent catch, and which do both miss?
+
+Later questions:
+  Q8.  Which mathematical representation of "perspective" is most useful?
+  Q9.  How should the system behave when observations are noisy?
+  Q10. Do agent groups help, and when?
+  Q11. Can the approach transfer from a grid world to language, objects,
+       actions, and time in richer domains?
+
+[OPEN] All of the above are unanswered.
+
+
+===============================================================================
+8. C++ DEVELOPMENT PRINCIPLES
+===============================================================================
+
+8.1 Environment
+
+[FACT] Windows, JetBrains CLion, C++17, CMake, Git and GitHub, GitHub Copilot
+inside CLion.
+
+8.2 Rules
+
+[PROPOSAL]
+
+  Language and libraries
+    - C++17 and the C++ standard library only.
+    - No external libraries, frameworks, networking, threads, or GUI in the
+      initial stages. Any new dependency requires a written decision.
+    - Text output to the console and CSV/text files only.
+
+  Structure
+    - main.cpp stays SHORT. It only wires components together.
+    - Each major component has its own .h (interface) and .cpp
+      (implementation) file.
+    - Guideline: files under ~200 lines, functions under ~40 lines. If a file
+      or function grows past this, split it or explain why not.
+    - One clear responsibility per class.
+
+  Readability (the owner is learning C++)
+    - Beginner-friendly comments that explain WHAT the code does and WHY.
+    - Each file starts with a short comment block: purpose of the file,
+      which stage introduced it, and how it fits the architecture.
+    - Prefer simple, explicit code over clever code.
+    - Prefer: struct / class, enum class, std::vector, std::array,
+      std::string, std::optional, references, const.
+    - Avoid: raw new/delete, macros (except include guards or #pragma once),
+      deep inheritance hierarchies, templates beyond standard containers,
+      global mutable variables.
+    - Descriptive names: predictedPosition, not pp.
+
+  Reproducibility
+    - All randomness uses std::mt19937 with an explicit, logged seed.
+    - The same seed and same settings must always produce the same results.
+
+  Compiler hygiene
+    - Warnings enabled (-Wall -Wextra for GCC/Clang/MinGW; /W4 for MSVC).
+    - Code must build without warnings before a stage is complete.
+
+8.3 Proposed initial repository layout
+
+    ai-hologram/
+      README.md                        Short overview + how to build/run
+      CMakeLists.txt
+      .gitignore                       Ignores build folders (cmake-build-*/)
+      .github/
+        copilot-instructions.md        Copy of Section 15 (see 13.4)
+      docs/
+        AI_Hologram_Project_Brief_v1.1.txt This document (v1.0 kept too)
+        DECISIONS.md                   Decision log
+        EXPERIMENT_LOG.md              Expected vs observed for every run
+        EXPERIMENT_1_PROTOCOL.md       Fixed experiment rules (added v1.1)
+        stages/
+          STAGE_00.md, STAGE_01.md ... One approved plan per stage
+      src/
+        main.cpp
+        (component folders added stage by stage)
+      tests/
+        (test files added stage by stage)
+      results/
+        (experiment output, one folder per experiment run)
+
+[PROPOSAL] Testing uses a small hand-written test executable registered with
+CTest (built into CMake), so no test framework dependency is needed at first.
+
+
+===============================================================================
+9. ROLES: THE OWNER, CLAUDE, CHATGPT, AND GITHUB COPILOT
+===============================================================================
+
+[PROPOSAL]
+
+  THE OWNER (project lead)
+    - Holds the original vision and makes all final decisions.
+    - Approves each stage plan before implementation.
+    - Builds and runs each stage in CLion and checks the results.
+    - Makes commits after verifying changes.
+    - Decides when a stage is complete.
+
+  CLAUDE (architecture and planning, via the website)
+    - Writes and revises this brief and stage plans.
+    - Designs experiments and control conditions.
+    - Reviews results and helps interpret them honestly.
+    - Does not write production code into the repository directly in this
+      workflow.
+
+  CHATGPT (independent review)
+    - Reviews the brief, stage plans, and experiment designs for flaws.
+    - Assists with debugging and evaluation of results.
+    - Its review is a second opinion, not a final verdict.
+
+  GITHUB COPILOT (implementation, inside CLion)
+    - Implements ONLY the currently approved stage plan.
+    - Follows Section 15 exactly.
+    - Does not add features, files, or dependencies that are not in the plan.
+
+  A caution in the spirit of Lessons L4 and L5:
+    - Claude and ChatGPT agreeing does not prove a design is right; both may
+      share the same blind spots. Real evidence comes from running the
+      experiments and checking the results.
+    - Documentation must not depend on any particular AI assistant. Any
+      competent human or AI contributor should be able to follow it.
+
+
+===============================================================================
+10. INCREMENTAL DEVELOPMENT ROADMAP
+===============================================================================
+
+[PROPOSAL] Each stage is small, buildable, runnable, and reviewed before the
+next begins. Every stage has its own plan file in docs/stages/ that must be
+approved by the owner before Copilot implements it.
+
+  STAGE 0 -- Repository Foundation
+    Goal: an empty-but-correct project that builds and runs.
+    Contents: CMakeLists.txt, minimal main.cpp ("AI Hologram -- Stage 0"),
+      .gitignore, README.md, docs/ folder with this brief, empty
+      DECISIONS.md and EXPERIMENT_LOG.md, a test executable with one
+      trivial passing test registered with CTest.
+    Learning focus: how CMake, CLion, and CTest fit together.
+    Stage 0 contains NO reasoning, agent, or environment code. Its only
+    purpose is to prove that the build, run, and test cycle works.
+
+  STAGE 1 -- The Grid World
+    Goal: a 10x10 grid environment with walls, one agent, one movable
+      object, and one destination. Pure environment -- no reasoning.
+    Contents: a WorldState struct; an Environment class that applies one
+      action and returns the new state; a text renderer that prints the
+      grid; tests for movement, pushing, and blocking rules.
+    Learning focus: structs, classes, enum class, const references.
+
+  STAGE 2 -- Prediction and Comparison (the "perspective" core)
+    Goal: represent a PREDICTED state separately from the OBSERVED state,
+      and compare them.
+    Contents: a Belief/WorldModel that predicts the next state; a
+      comparison function that reports exactly which parts differ
+      (agent position, object position, blocked cell, etc.); tests.
+    Learning focus: separating "what I think" from "what is."
+
+  STAGE 3 -- Competent Single Agent
+    Goal: one agent that runs the full predict -> act -> observe -> compare
+      -> correct -> replan loop and completes the task.
+    Contents: a planner (e.g. breadth-first search over the agent's own
+      belief), belief correction from mismatches, replanning, step logging.
+    Note: this is the STRONG baseline for Experiment 1. It must be built
+      carefully and must not be weakened later. (v1.1) It uses the same
+      safe-stop option, mismatch-source labels (Section 4.4), and
+      two-part correction verification (Section 4.5) as the two-agent
+      system, so those features are not an unfair advantage for C3.
+
+  DEFINITION GATE (added in v1.1) -- before Stage 4 begins
+    No fault-injection, agent, or experiment code is written until
+    docs/EXPERIMENT_1_PROTOCOL.md has been written, independently reviewed,
+    and approved by the owner. It must define, in concrete numbers:
+      - agent behaviour for Sections 4.2-4.5 (including safe stops and
+        correction verification);
+      - fault assignment, observation access, and budget counting
+        (Section 11.5);
+      - layouts, seeds, fault rates, budget B, stop limit;
+      - what counts as a "meaningful" difference between conditions.
+    Stages 0-3 (foundation, grid world, prediction, single agent) do not
+    depend on these choices and may proceed while the protocol is written.
+
+  STAGE 4 -- Fault Injection and Measurement
+    Goal: the ability to introduce controlled, logged errors into an
+      agent's beliefs or reasoning, and to measure detection and recovery.
+    Contents: fault types (Section 11.3), a fault schedule controlled by
+      seed, metrics collection, CSV output.
+    Learning focus: reproducible experiments.
+
+  STAGE 5 -- Message Protocol
+    Goal: the message structs from Section 4.1 and a message log. Tested
+      in isolation with scripted messages (no reasoning yet).
+
+  STAGE 6 -- Agent 1 and Agent 2
+    Goal: the two overlapping agents and the reasoning cycle from
+      Section 4.2, including disagreement investigation and verified
+      correction.
+
+  STAGE 7 -- Experiment Runner and Control Conditions
+    Goal: run all conditions in Section 11 across many seeds under equal
+      budgets, and write results to results/.
+
+  STAGE 8 -- Experiment 1: Run, Analyse, Document
+    Goal: run the pre-registered experiment, record expected vs observed,
+      and write an honest results report, including failures.
+
+  STAGE 9+ -- Decided after Stage 8
+    Possible directions, depending on results: different representations
+    of perspective (Q8), noisy observations (Q9), richer environments,
+    agent groups (Q10). None are committed to now.
+
+Rule: stages may be split into smaller sub-stages (e.g. 3a, 3b) whenever a
+stage proves too large to understand in one step.
+
+
+===============================================================================
+11. EXPERIMENT 1: DESIGN AND CONTROL CONDITIONS
+===============================================================================
+
+11.1 Reconsidering the earlier grid experiment
+
+[OBSERVATION] The previous project used a 10x10 grid in which an agent moved
+an object toward a destination.
+
+[PROPOSAL] We keep the grid world because it is simple, visual, and easy to
+debug. But we change what it tests.
+
+A weakness of a pure navigation task: if the environment is deterministic
+and the agents' knowledge is correct, there are no errors to correct, and
+every competent system succeeds equally. If the only errors come from the
+environment (surprises), then a single agent with good replanning can handle
+them just as well. Neither situation tests RECIPROCAL error correction.
+
+What we actually need to test is whether one agent can catch errors in the
+OTHER agent's reasoning. So Experiment 1 introduces controlled errors INSIDE
+the reasoning (faulty beliefs, faulty predictions), with the true answer
+known to the experimenter, so detection can be measured exactly.
+
+11.2 Task
+
+[PROPOSAL]
+  - 10x10 grid, outer walls, some internal walls.
+  - One agent (the "body" both reasoners control), one movable object, one
+    destination cell.
+  - The agent pushes the object (it moves into the object's cell; the object
+    moves one cell in the same direction if that cell is free).
+  - Goal: object on the destination.
+  - The environment is deterministic and fully observed in Experiment 1.
+  - Some layouts contain "trap" positions (e.g. object pushed into a corner
+    can never reach the goal) so that consequence-aware reasoning matters.
+  - Fixed set of N layouts (e.g. 50), each run with M seeds (e.g. 20).
+    Exact numbers set in the Experiment 1 Protocol.
+
+11.3 Fault types (injected into reasoning, not the world)
+
+[PROPOSAL] Each fault is logged with its ground truth so detection is
+measurable.
+  F1. Wrong belief about a wall (agent believes a free cell is blocked, or
+      a blocked cell is free).
+  F2. Wrong belief about the object's position (off by one cell).
+  F3. Faulty action model (e.g. believes "push east" moves the object
+      north).
+  F4. Faulty consequence reasoning (fails to recognise a trap).
+  F5. Stale memory (uses an old state after the world has changed).
+
+Faults are injected at a controlled rate, at seed-determined moments.
+Exactly how faults are assigned to reasoners is defined in Section 11.5.
+
+11.4 Conditions
+
+[PROPOSAL] All conditions receive the SAME layouts, SAME seeds, SAME fault
+schedule, SAME observations, and the SAME computational budget.
+
+  C0 -- Naive single agent (reference floor only)
+        Plans once, never checks predictions. Included only to confirm that
+        checking matters at all. NOT the comparison for the hypothesis.
+
+  C1 -- Competent single agent (THE MAIN BASELINE)
+        Full predict-act-observe-compare-correct-replan loop (Stage 3). It
+        is allowed to use look-ahead and to check its own consequences. It
+        gets the same budget the two-agent system gets in total.
+
+  C2 -- Two identical copies of the competent agent
+        Same code twice, cross-checking each other. Tests whether any
+        benefit comes from mere duplication (Lesson L4).
+
+  C3 -- Two-agent overlapping architecture (THE HYPOTHESIS)
+        Agent 1 (incremental) + Agent 2 (temporal-spatial), different
+        methods, overlapping abilities, mutual checking, verified
+        correction (Sections 3 and 4).
+
+  C4 -- Two-agent exclusive architecture (ablation)
+        Same two agents as C3, but each may only check its own territory
+        and must trust the other. Tests Lesson L3.
+
+11.5 Fairness rules
+
+(Expanded in v1.1. These rules must be finalised in the Experiment 1
+Protocol -- see Section 10, "Definition gate" -- BEFORE any experiment code
+is written, and must not change after results are seen.)
+
+11.5.1 How faults are assigned
+
+[PROPOSAL] The problem: a fault injected into a single agent damages the
+whole system, while the same fault injected into one of two agents leaves a
+healthy partner. This is partly WHAT we want to test, but it can also make
+the comparison unfair or confusing. So the assignment rules are fixed:
+
+  - FAULT EVENTS ARE DEFINED PER SYSTEM, NOT PER REASONER. A fault schedule
+    is a list of events: (step, fault type, fault details). Every condition
+    receives the same list of events, generated from the same seed.
+  - C0 / C1 (one reasoner): every event is applied to that reasoner.
+  - C2 / C3 / C4 (two reasoners): each event is applied to ONE reasoner,
+    chosen by a separate seeded coin flip, balanced so each reasoner
+    receives half of the events of each fault type. The target is logged.
+  - COMMON-MODE FAULTS: a fixed fraction of events (set in the Experiment 1
+    Protocol, e.g. 20%) are applied to BOTH reasoners in two-reasoner
+    conditions.
+    This models a shared mistake (Lesson L5) and stops the two-agent
+    system from benefiting only from faults that never affect both agents.
+  - Each fault type must have a definition for every reasoner it can be
+    applied to. If a fault type has no meaning for a reasoner (e.g. a
+    look-ahead fault in a reasoner with no look-ahead), this is written down
+    in the plan, and results are reported per fault type so the gap is
+    visible rather than hidden in an average.
+  - A fault persists until it is corrected or the run ends. It is not
+    silently removed by the experiment.
+
+11.5.2 What each condition can observe
+
+[PROPOSAL]
+  - Every reasoner in every condition receives the SAME full observation
+    of the world each step, and has access to the same observation history.
+  - No reasoner ever sees the fault schedule, the fault target, or the
+    experimenter's ground truth.
+  - In two-reasoner conditions, reasoners see each other ONLY through
+    messages (Section 4.1). They never read each other's beliefs directly.
+  - In C4 (exclusive roles), message content is restricted as described in
+    that condition, but observations are not.
+  - The experimenter's evaluation code (scoring) is kept separate from the
+    agents' code, so scoring information cannot leak into reasoning.
+
+11.5.3 How computational work is counted
+
+[PROPOSAL]
+  - THE UNIT: one "model evaluation" = one prediction of the next state
+    from a (state, action) pair, whether for planning, look-ahead,
+    reviewing, or verifying a correction.
+  - ALL predictions go through ONE counting object (a budget counter). Code
+    that predicts a state without going through the counter is a bug.
+  - BUDGET PER STEP: each condition has the same budget B per world step
+    (value set in the Experiment 1 Protocol). In two-reasoner conditions,
+    B is split by a fixed rule decided in advance (default: equal halves;
+    unused budget is not transferred). Any alternative rule (e.g. dynamic
+    sharing) would be a separate, named condition, not a silent change.
+  - When the budget is used up, the system must decide with what it has
+    (act, cautious action, or safe stop). It may not exceed the budget.
+  - Safe-stop steps consume budget like any other step.
+  - Message passing and simple state comparisons are counted SEPARATELY and
+    reported, but not limited, in Experiment 1. If they turn out to be
+    expensive, this will be revisited openly.
+  - Reported per run: total model evaluations, evaluations per reasoner,
+    and evaluations spent on verification (Section 4.5).
+
+11.5.4 Other fairness rules
+
+[PROPOSAL]
+  - INFORMATION: all conditions see the same observations (11.5.2).
+  - The baseline is not modified after results are seen, except to fix a
+    genuine bug, which must be recorded in DECISIONS.md, after which ALL
+    conditions are re-run.
+  - Safe stops (Section 4.2, step 4b) are available to EVERY condition,
+    including C1, with the same stop limit.
+
+11.6 Measurements
+
+[PROPOSAL]
+  - Task success rate.
+  - Steps to completion (and wasted steps).
+  - Fault detection rate: injected faults detected / injected faults.
+  - Detection delay: steps between injection and detection.
+  - False alarm rate: objections raised when no fault existed.
+  - Correction success: detected faults correctly repaired and verified.
+  - Disagreement outcomes: how often the objecting agent was right (Q6).
+  - Detection by fault type, by agent (Q7).
+  - Budget actually used.
+  Added in v1.1:
+  - Safe stops: how many, and how many were justified (a fault really was
+    present) versus unnecessary.
+  - Runs ending "STOPPED -- UNRESOLVED," reported separately from success
+    and failure.
+  - Correction status: how many corrections were PROPOSED, CONSISTENT,
+    VERIFIED, and REJECTED, and how many accepted corrections later proved
+    wrong (Section 4.5).
+  - Source classification: how often the "suspected source" (S1-S5) of a
+    mismatch matched the ground truth (Section 4.4).
+  - All detection results reported separately for single-reasoner faults
+    and common-mode faults (11.5.1).
+
+11.7 Pre-registered hypotheses and predictions
+
+[HYPOTHESIS] Written BEFORE any code runs, so results cannot quietly reshape
+them:
+  H1. C3 detects a higher proportion of injected faults than C1 under equal
+      budget.
+  H2. C3 does not have a meaningfully higher false-alarm rate than C1.
+  H3. C3 detects more faults than C2 (method diversity matters).
+  H4. C3 outperforms C4 on correction success (overlap matters).
+  H5. C1 performs much better than C0 (sanity check that checking helps).
+
+[PROPOSAL] Possible outcomes and how they will be reported:
+  - If C3 is no better than C1: report it plainly. This is useful evidence.
+  - If C3 equals C2: the benefit is from redundancy, not architecture.
+  - If C3 wins only with a larger budget: report that the benefit was
+    bought with extra computation.
+  - If results are mixed: report per fault type, without averaging away
+    the differences.
+  - What counts as "meaningfully better" (thresholds, number of runs,
+    how variation across seeds is reported) will be fixed in the
+    Experiment 1 Protocol before running.
+
+11.8 Known limitations of Experiment 1
+
+[PROPOSAL] Stated in advance:
+  - A grid world is far simpler than language or real-world reasoning.
+  - Faults are artificial; real reasoning errors may look different.
+  - We designed both the agents and the faults, which risks unconscious
+    bias toward faults one agent is built to catch. Mitigation: the fault
+    list is fixed before Agent 1 and Agent 2 are written, and reviewed
+    independently.
+
+
+===============================================================================
+12. TESTING, DEBUGGING, DOCUMENTING, AND PRESERVING RESULTS
+===============================================================================
+
+12.1 Two kinds of tests (Lesson L7)
+
+[PROPOSAL]
+  CORRECTNESS TESTS  -- "Does the code do what we think it does?"
+      Examples: pushing an object into a wall leaves it in place; the
+      comparison function finds a one-cell difference.
+      These must all pass before a commit.
+  RESEARCH MEASUREMENTS -- "What happens in the experiment?"
+      These are NOT pass/fail. A disappointing measurement is a finding, not
+      a bug. Never change the code just to make a measurement look better.
+
+12.2 Debugging rules
+
+[PROPOSAL]
+  - Reproduce the problem with a fixed seed first.
+  - Change one thing at a time.
+  - Write down what you expected, what happened, and what you changed.
+  - When a bug is fixed, add a correctness test that would have caught it.
+  - Use the step log and the text grid renderer before adding new tools.
+
+12.3 Recording experiments: expected vs observed
+
+[PROPOSAL] Every experiment run gets an entry in docs/EXPERIMENT_LOG.md:
+
+    Experiment ID / date / Git commit hash
+    Hypothesis being tested
+    Settings (layouts, seeds, fault rate, budget)
+    EXPECTED result (written before running)
+    OBSERVED result (written after running)
+    Difference between expected and observed
+    Interpretation (clearly labelled as interpretation)
+    Follow-up questions
+
+12.4 Preserving results
+
+[PROPOSAL]
+  - Raw output (CSV) goes into results/<experiment_id>/ and is committed.
+  - Results are never edited by hand. Analysis is done on copies.
+  - Each result folder records the commit hash and settings that produced
+    it, so anyone can reproduce it.
+  - Failed and abandoned experiments are kept and documented.
+
+
+===============================================================================
+13. GITHUB VERSION CONTROL AND DOCUMENTATION PRACTICES
+===============================================================================
+
+13.1 Commits
+
+[PROPOSAL]
+  - Commit only after the change builds, tests pass, and the owner has run
+    it and understands it.
+  - One logical change per commit.
+  - Commit message format:
+        Stage N: short summary in present tense
+
+        Why this change was made.
+        What was verified (build, tests, manual run).
+  - Never commit build folders (cmake-build-debug/ etc.).
+
+13.2 Tags
+
+[PROPOSAL] When a stage is complete, tag it: stage-0, stage-1, ...
+This lets anyone check out exactly what existed at each stage.
+
+13.3 Branches
+
+[PROPOSAL] Keep it simple at first: work on main, one stage at a time.
+Optionally use a branch per stage (stage-3-single-agent) and merge when
+complete. Experiments that may be abandoned go on their own branch so the
+history of the attempt is still preserved.
+
+13.4 Living documents
+
+[PROPOSAL]
+  - This brief: updated as the project evolves; major revisions create a new
+    version file (v2, v3...), and the old file stays in the repository.
+  - docs/DECISIONS.md: one short entry per decision:
+        Date / Decision / Reason / Alternatives considered / Who decided
+  - docs/stages/STAGE_NN.md: the approved plan for each stage, plus a
+    short "what actually happened" note at the end.
+  - .github/copilot-instructions.md: a copy of Section 15. GitHub Copilot
+    reads this file automatically as repository-wide instructions.
+  - README.md: always reflects the CURRENT state honestly (what works now,
+    what is planned, what has been tested).
+
+
+===============================================================================
+14. STAGE COMPLETION CRITERIA
+===============================================================================
+
+[PROPOSAL] A stage is complete only when ALL of the following are true:
+
+  [ ] The approved stage plan exists in docs/stages/.
+  [ ] Everything in the plan is implemented, and nothing outside it.
+  [ ] The project builds in CLion with no errors and no warnings.
+  [ ] All correctness tests pass (CTest).
+  [ ] The program has been run, and its output matches the plan's
+      expected output (or the difference is documented).
+  [ ] The owner can explain in plain language what each new file does.
+  [ ] New code follows Section 8 (size, comments, naming).
+  [ ] Documentation is updated: stage note, DECISIONS.md if needed,
+      EXPERIMENT_LOG.md if anything was measured, README.md.
+  [ ] No speculative capability is described as achieved.
+  [ ] Changes are committed and the stage is tagged.
+
+Each stage plan adds its own specific criteria (e.g. Stage 1: "pushing the
+object into a wall leaves both agent and object unchanged").
+
+
+===============================================================================
+15. INSTRUCTIONS FOR GITHUB COPILOT
+===============================================================================
+
+(This section is also intended to be copied into
+.github/copilot-instructions.md.)
+
+You are assisting with the AI Hologram research project, a C++17 / CMake
+project developed in JetBrains CLion on Windows. The project owner is
+learning C++. Readability and honesty matter more than speed or cleverness.
+
+BEFORE WRITING CODE
+  1. Read the current approved stage plan in docs/stages/. Implement ONLY
+     what that plan describes.
+  2. If the plan is unclear, incomplete, or seems wrong, STOP and ask the
+     owner. Do not guess and do not redesign.
+  3. Do not implement future stages, even if they seem easy or helpful.
+
+WHILE WRITING CODE
+  4. Use C++17 and the standard library only. Do not add libraries,
+     frameworks, networking, threads, or GUI code.
+  5. Keep main.cpp short. Put each component in its own .h/.cpp pair.
+  6. Keep files under ~200 lines and functions under ~40 lines.
+  7. Start each file with a comment: its purpose, the stage that introduced
+     it, and how it fits the architecture.
+  8. Write beginner-friendly comments explaining WHAT and WHY.
+  9. Prefer simple constructs: struct, class, enum class, std::vector,
+     std::array, std::string, std::optional, const references.
+     Avoid raw new/delete, macros, deep inheritance, and advanced templates.
+  10. Use std::mt19937 with an explicit seed for any randomness.
+  11. Code must compile without warnings with the project's warning flags.
+  12. Agents communicate only through explicit message structs. One agent
+      must never read or modify the other's internal data directly.
+  13. Never give one agent automatic authority over the other. Never treat
+      agreement between agents as proof of correctness.
+  13a. (v1.1) "Take no action" (a safe stop) must always be a possible
+      outcome of a reasoning step. Do not write code that forces an action
+      every step.
+  13b. (v1.1) Do not assume a mismatch means a reasoning error. Record the
+      suspected source (reasoning, belief, model, observation, unknown).
+  13c. (v1.1) A correction is not accepted just because it fits past
+      observations. Track its status (proposed, consistent, verified,
+      rejected) as described in the brief.
+  13d. (v1.1) Every state prediction must go through the shared budget
+      counter. Never predict a state "for free."
+
+TESTING
+  14. Add correctness tests for new behaviour in tests/.
+  15. Never weaken a baseline (e.g. the competent single agent) or adjust
+      experiment code to make a result look better.
+  16. Never change a test merely to make it pass. If a test seems wrong,
+      explain why and ask the owner.
+
+AFTER WRITING CODE
+  17. Summarise for the owner: files added or changed, what each does, how
+      to build and run, what output to expect.
+  18. Point out anything you were unsure about.
+  19. Do not claim something works unless it has been built and run.
+  20. Do not describe untested hypotheses as achieved capabilities, in code
+      comments, README text, or commit messages.
+
+CHANGE SIZE
+  21. Prefer several small changes over one large one. If a requested change
+      would touch more than a few files, propose splitting it.
+
+
+===============================================================================
+16. GLOSSARY
+===============================================================================
+
+  Agent 1        The incremental reasoner: emphasis on the next step.
+  Agent 2        The temporal-spatial reasoner: emphasis on context over
+                 time and space.
+  Belief         An agent's internal model of the world, which may be wrong.
+  Observation    What the environment actually reports. Final evidence.
+  Prediction     What an agent expects the next observation to be.
+  Mismatch       A difference between a prediction and an observation, or
+                 between two agents' predictions.
+  Perspective    One particular view of the shared state (local, temporal,
+                 spatial, predicted, observed).
+  Fault          A deliberately injected error in an agent's reasoning, with
+                 known ground truth.
+  False alarm    An objection raised when no fault actually existed.
+  Budget         The countable limit on computation per step, shared equally
+                 across conditions.
+  Safe stop      (v1.1) A reasoning step that deliberately takes no world
+                 action because no action is judged safe.
+  Mismatch source (v1.1) The suspected cause of a mismatch: reasoning,
+                 belief, model, observation, or unknown (Section 4.4).
+  Verified correction (v1.1) A correction that is consistent with all past
+                 observations AND has passed an independent test.
+  Common-mode fault (v1.1) A fault applied to both reasoners at once.
+  Model evaluation (v1.1) One predicted next state; the unit of the
+                 computational budget.
+  Stage          A small, approved, buildable unit of development.
+  System         (Long-term) a self-contained unit containing both reasoning
+                 capabilities.
+  Agent group    (Long-term) a temporary cooperation between agents from
+                 different systems.
+
+
+===============================================================================
+17. REVISION HISTORY
+===============================================================================
+
+  v1.0  2026-10-19  First specification for the new ai-hologram repository.
+                    Written by Claude from the owner's project notes.
+                    Pending independent review by ChatGPT and approval by
+                    the owner. No code exists yet.
+
+  v1.1  2026-10-19  Revised after independent review by ChatGPT. The
+                    overall architecture was approved; four corrections
+                    were requested. All other content is unchanged.
+
+                    Change 1 -- Unresolved disagreements may end in a SAFE
+                      STOP with no world action.
+                      Where: 4.1 (SAFE_STOP message), 4.2 (new step 4b,
+                      step 5), 11.5.4, 11.6, 15 (rule 13a), 16.
+                      Why: acting cautiously is not always safer than not
+                      acting. A stop limit prevents "never acting" from
+                      looking like success.
+
+                    Change 2 -- Two-part verification of corrections:
+                      consistency with all past observations PLUS an
+                      independent test (future prediction, held-out
+                      observation, or cross-check by the other agent).
+                      Where: 4.2 (step 8), new 4.5, 6 (L6), 11.6, 15
+                      (rule 13c), 16.
+                      Why: a correction can be fitted to past data and
+                      still be wrong.
+
+                    Change 3 -- Precise experimental comparison rules.
+                      Where: 11.3, 11.5 (rewritten as 11.5.1-11.5.4), 11.6,
+                      10 (new Definition Gate; Stage 3 note), 8.3, 15
+                      (rule 13d), 16. "Stage 7 plan" replaced by a new
+                      docs/EXPERIMENT_1_PROTOCOL.md, approved before Stage 4.
+                      Why: faults injected into one of two agents versus a
+                      single agent can create unequal difficulty. Fault
+                      assignment (including common-mode faults), observation
+                      access, and budget counting are now defined.
+
+                    Change 4 -- A mismatch is not automatically a reasoning
+                      error. Five possible sources are kept distinct:
+                      reasoning, belief, model, observation, unknown.
+                      Where: 4.2 (step 7), new 4.4, 11.6, 15 (rule 13b), 16.
+                      Why: the observation or the underlying model could be
+                      incomplete. Experiment 1 rules out observation errors,
+                      but the architecture keeps the distinction.
+
+                    Also, following ChatGPT's milestone advice: Stage 0 is
+                    stated explicitly to contain no reasoning code.
+
+  (Next entries: record what changed, why, and who suggested it.)
+
+===============================================================================
+END OF DOCUMENT
+===============================================================================

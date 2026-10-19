@@ -1,3 +1,30 @@
+
+# CLion-generated build directories.
 cmake-build-*/
+
+# Other CMake build directories.
+build/
+out/
+
+# CLion personal IDE settings.
 .idea/
+
+# Claude local configuration.
 .claude/
+
+# CTest temporary results.
+Testing/
+
+# Temporary editor files.
+*.swp
+*.swo
+*~
+
+# Windows and macOS system files.
+Thumbs.db
+.DS_Store
+
+# Locally generated executables and object files.
+*.exe
+*.obj
+*.o
