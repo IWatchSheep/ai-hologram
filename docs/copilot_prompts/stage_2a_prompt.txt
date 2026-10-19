@@ -1,0 +1,15 @@
+Read .github/copilot-instructions.md (including rules 2f and 2g), the brief docs/AI_Hologram_Project_Brief_v1.1.txt, and the approved plan docs/stages/STAGE_02.md (v1.3). Stage 1 is complete and tagged stage-1.
+
+Implement SUB-STAGE 2a ONLY (plan Section 7, Step 2):
+- Create src/model/belief.h, src/model/prediction.h, src/model/budget_counter.h/.cpp, and src/model/world_model.h/.cpp, exactly as in plan Sections 3.1-3.3 and 4.2, including the empty-ActionModel fallback.
+- Create tests/test_budget_counter.cpp (BC1-BC4) and tests/test_world_model.cpp (WM1-WM8), and register everything in CMakeLists.txt, tests/test_suites.h, and tests/test_main.cpp.
+- Leave currentStage() returning 1. Do not change any Stage 1 rule or test.
+
+From the start:
+- every new file has the three-part header (Purpose / "Introduced in Stage 2" / Architecture) and the beginner comments in plan 9.1;
+- functions under about 40 lines and files under about 200 lines;
+- no exceptions, no assertions, no inheritance;
+- every test world must be valid unless the test is about invalid states;
+- every prediction must go through BudgetCounter::tryUse().
+
+Do not rename, move, or delete any file, or use refactoring tools on files. Do not touch any file not listed above, and do not edit anything in docs/ (including docs/copilot_prompts/). If anything is unclear or impossible, stop and ask instead of weakening a rule or test. When finished, append a handoff note (rule 2f) saying honestly what you actually built and ran. Do not commit.

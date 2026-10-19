@@ -4,7 +4,7 @@
 |---|---|
 | **Project** | AI Hologram (`ai-hologram` repository) |
 | **Stage** | 2 of the roadmap in *AI_Hologram_Project_Brief_v1.1.txt*, Section 10 |
-| **Plan version** | 1.2 |
+| **Plan version** | 1.3 |
 | **Date** | October 19, 2026 |
 | **Status** | **APPROVED by the owner on October 19, 2026**, following ChatGPT's recommendation, with the two v1.1 clarifications. Ready for implementation, beginning with Step 1 (owner commits this plan); then sub-stage 2a only. |
 | **Governing specification** | AI_Hologram_Project_Brief_v1.1.txt (approved) |
@@ -335,7 +335,7 @@ Save the approved plan as `docs/stages/STAGE_02.md`, then commit by name: `Stage
 - Commit: `Stage 2b: add state comparison and difference descriptions`
 
 ### Step 4 — Sub-stage 2c: demonstrations, stage number, documentation
-- Files: `prediction_demo.h/.cpp`; update `main.cpp`, `project_info.cpp` (2), test P2 (2), `README.md` status (9.2), `docs/DECISIONS.md` (Section 8: D-013 to D-017).
+- Files: `prediction_demo.h/.cpp`; update `main.cpp`, `project_info.cpp` (2), test P2 (2), `README.md` status (9.2), `docs/DECISIONS.md` (Section 8: D-014 to D-018).
 - Check: `ai_hologram` output matches **5.5 exactly**.
 - Commit: `Stage 2c: add prediction demonstrations and update stage number`
 
@@ -360,11 +360,11 @@ Or run **All CTest** inside CLion.
 
 | ID | Decision | Reason | Alternatives considered |
 |---|---|---|---|
-| D-013 | A reasoner's belief is a separate type, `Belief`, wrapping a `WorldState`; only `Environment` holds the true state. | The compiler then prevents "what I think" being used as "what is" (Brief Stage 2). | Use `WorldState` for both. |
-| D-014 | `WorldModel` predicts by applying a replaceable `ActionModel` (`std::function`), defaulting to the true rules `applyAction`. | Lets a faulty action model (F3) be supplied later without a class hierarchy; keeps prediction separate from the true world. | Hard-code `applyAction`; an abstract base class with subclasses. |
-| D-015 | Every prediction is paid for through one `BudgetCounter` (one model evaluation each); when exhausted, `predict` returns no prediction instead of throwing. | Enforces equal computational budgets (Brief 11.5.3, rule 13d) and the no-exceptions rule (D-010). | Count predictions separately in each component; throw when over budget. |
-| D-016 | `compareStates` reports every difference in a fixed order (agent, object, destination, then walls row by row); a prediction matches only if outcomes are equal and no state differences exist. | A complete and stable report makes mismatches easy to read, test, and log. | Report only the first difference; compare outcomes only. |
-| D-017 | The Stage 2 demos replace the belief with the observation after each step, and say so in the output. This is a demonstration shortcut, not a correction policy. | Keeps Stage 2 free of reasoning; belief correction is a Stage 3 decision governed by Brief 4.5 and protocol Phase B. | Implement a correction rule now. |
+| D-014 | A reasoner's belief is a separate type, `Belief`, wrapping a `WorldState`; only `Environment` holds the true state. | The compiler then prevents "what I think" being used as "what is" (Brief Stage 2). | Use `WorldState` for both. |
+| D-015 | `WorldModel` predicts by applying a replaceable `ActionModel` (`std::function`), defaulting to the true rules `applyAction`. | Lets a faulty action model (F3) be supplied later without a class hierarchy; keeps prediction separate from the true world. | Hard-code `applyAction`; an abstract base class with subclasses. |
+| D-016 | Every prediction is paid for through one `BudgetCounter` (one model evaluation each); when exhausted, `predict` returns no prediction instead of throwing. | Enforces equal computational budgets (Brief 11.5.3, rule 13d) and the no-exceptions rule (D-010). | Count predictions separately in each component; throw when over budget. |
+| D-017 | `compareStates` reports every difference in a fixed order (agent, object, destination, then walls row by row); a prediction matches only if outcomes are equal and no state differences exist. | A complete and stable report makes mismatches easy to read, test, and log. | Report only the first difference; compare outcomes only. |
+| D-018 | The Stage 2 demos replace the belief with the observation after each step, and say so in the output. This is a demonstration shortcut, not a correction policy. | Keeps Stage 2 free of reasoning; belief correction is a Stage 3 decision governed by Brief 4.5 and protocol Phase B. | Implement a correction rule now. |
 
 ---
 
@@ -380,6 +380,13 @@ Replace the status paragraph with:
 ### 9.3 `.github/copilot-instructions.md`
 *(Updated in v1.2.)* Before sub-stage 2a, the owner adds **rule 2g** (how Copilot runs programs and tests; never change link settings to work around the missing-DLL error), recorded as decision **D-012**. No other change to this file is authorized in Stage 2.
 
+### 9.5 `docs/copilot_prompts/` *(added in v1.3)*
+Before sub-stage 2a, the owner creates the folder `docs/copilot_prompts/`, recorded as decision **D-013**. It holds:
+- `README.md`, which explains the folder;
+- one text file per instruction given to GitHub Copilot, named by stage and sub-stage (for example `stage_2a_prompt.txt`, and `stage_2a_followup_1.txt` for any later request in the same sub-stage).
+
+The owner saves each prompt here **before** giving it to Copilot, and commits it together with that sub-stage's work. This keeps a record in the public history of exactly what Copilot was asked to do at each step. The prompts are owner documents: Copilot only reads them and never edits them (rule 2b). Prompts given before Stage 2 were not saved as files; their content is summarised in the Stage 0 and Stage 1 records and handoff notes.
+
 ### 9.4 `docs/EXPERIMENT_LOG.md`
 Unchanged. Stage 2 runs no experiments.
 
@@ -392,7 +399,8 @@ Unchanged. Stage 2 runs no experiments.
 - [ ] Git history is intact; the gate was passed before the completion commit and the `stage-2` tag.
 
 **Scope**
-- [ ] Only the files in 4.1 (plus `CMakeLists.txt`, `README.md`, `docs/DECISIONS.md`, this plan, and the handoff notes) were added or changed.
+- [ ] Only the files in 4.1 (plus `CMakeLists.txt`, `README.md`, `docs/DECISIONS.md`, this plan, the handoff notes, and the prompt files in `docs/copilot_prompts/`) were added or changed.
+- [ ] Every Copilot instruction for Stage 2 is saved in `docs/copilot_prompts/` (9.5).
 - [ ] Nothing from Section 2; no file renamed, moved, or deleted; Stage 1 rules unchanged.
 
 **Build, run, test**
@@ -406,7 +414,7 @@ Unchanged. Stage 2 runs no experiments.
 - [ ] Every prediction goes through `BudgetCounter::tryUse()`; no other code predicts states.
 - [ ] No exceptions; no inheritance; functions under ~40 lines; files under ~200 lines (or a recorded reason).
 - [ ] Header blocks and beginner comments (9.1).
-- [ ] README status matches 9.2; DECISIONS.md contains D-013 to D-017.
+- [ ] README status matches 9.2; DECISIONS.md contains D-014 to D-018.
 - [ ] The owner can explain the items in Section 11.
 
 ---
@@ -468,3 +476,4 @@ Anything learned that should change future stage plans:
 | 1.0 | 2026-10-19 | First draft by Claude after Stage 1 was tagged and Phase A of the Experiment 1 protocol was approved. Incorporates Stage 1 lessons: test fixtures must be valid; requirements for comments, function length and no exceptions stated up front; a fresh Copilot chat per sub-stage. Expected output (5.5) produced by simulating the specified rules. Includes an [OBSERVATION]/[OPEN] item (5.6) for Phase B: full-state comparison makes wrong-belief faults visible immediately. For independent review by ChatGPT and approval by the owner. |
 | 1.1 | 2026-10-19 | ChatGPT reviewed v1.0 and recommended approval of the architecture; the owner approved. Two clarifications: **(A)** an empty `ActionModel` supplied to `WorldModel` falls back to the default `applyAction`, so an empty `std::function` is never called (no exceptions); documented in 3.2 and 4.2, with new test WM8. **(B)** Comparison-test fixtures must be valid under Stage 1 rules: wall changes only on interior cells away from the agent, object and destination; position changes inside the grid, on non-wall cells, and without agent/object overlap; each test checks `isValidWorld` on its fixtures (6.4). Section 5.6 kept, with ChatGPT's agreed constraint added: Phase A unchanged; no information withheld from the baseline; same information and budget for all conditions; Phase B must settle comparisons before Stage 3 is approved. No architectural change. **Approved by the owner on 2026-10-19.** |
 | 1.2 | 2026-10-19 | Owner-approved documentation change before sub-stage 2a: the owner adds **rule 2g** to `.github/copilot-instructions.md` (Copilot puts CLion's MinGW folder on the PATH before running programs or CTest, and never changes link settings, adds static linking, or copies DLLs to work around the missing-DLL error), recorded as **D-012**. 9.3 updated to reflect this. Stage 2's planned decisions renumbered **D-013 to D-017** (content unchanged); Step 4 and the checklist updated to match; 9.4 reference in Step 4 corrected to 9.2. No change to architecture, behaviour, tests, or expected output. ChatGPT to be informed at the next review. |
+| 1.3 | 2026-10-19 | Owner-approved documentation change before sub-stage 2a: new folder `docs/copilot_prompts/` (9.5) to keep every instruction given to Copilot in the repository history, recorded as **D-013**. Stage 2's planned decisions renumbered **D-014 to D-018** (content unchanged); Step 4 and the checklist updated; checklist gains a prompt-record item. No change to architecture, behaviour, tests, or expected output. ChatGPT to be informed at the next review. |
