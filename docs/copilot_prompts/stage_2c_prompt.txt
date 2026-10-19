@@ -1,0 +1,34 @@
+Read .github/copilot-instructions.md (including rules 2f and 2g), the brief docs/AI_Hologram_Project_Brief_v1.1.txt, and the approved plan docs/stages/STAGE_02.md (v1.3). Sub-stage 2a is committed as 38cf17d and sub-stage 2b as af1981f.
+
+Implement SUB-STAGE 2c ONLY (plan Section 7, Step 4):
+
+1. Create src/demo/prediction_demo.h/.cpp with void runPredictionDemos(std::ostream& out), as in plan Sections 4.2 and 5.3-5.5:
+   - Each demo parses its own copy of the Stage 1 demo layout (the same ten lines as in src/demo/scripted_demo.cpp; do not change scripted_demo.h/.cpp). If parsing fails, print a message and return; never throw.
+   - Each demo uses a fresh Environment, a fresh BudgetCounter with limit 10, a default WorldModel, and the actions East x5.
+   - Each step: predict from the belief through WorldModel::predict (never any other way); apply the action to the Environment; compare with comparePrediction; print the step line and any describeDifferences lines; then replace the belief with the observed state. If predict returns no prediction, print a short message and stop that demo (this cannot happen with limit 10, but it must not crash or throw).
+   - Demo 1: the belief starts equal to the true world.
+   - Demo 2: the belief starts equal to the true world except that walls[3][6] is true (the cell x = 6, y = 3, a free floor cell). The belief is still a valid world.
+   - After each demo, print the mismatch count and budget.used().
+   - The top comment must state plainly: the actions and the wrong belief are hand-written; nothing chooses them; this is not fault injection. Also explain that replacing the belief with the observation is only a demonstration shortcut; how beliefs are corrected is a Stage 3 decision.
+2. Update src/main.cpp: header line 2 becomes "Grid world with prediction and comparison (scripted demonstrations)."; keep calling runScriptedDemo(std::cout); then call runPredictionDemos(std::cout). Keep main.cpp short.
+3. Update src/core/project_info.cpp so currentStage() returns 2, and update test P2 in tests/test_project_info.cpp to check 2 (its description becomes "currentStage() returns 2"). Change no other test.
+4. Register the new files in CMakeLists.txt.
+
+The ai_hologram program's output must match plan Section 5.5 EXACTLY, character for character. In particular:
+- step lines look like "Step 1: East | predicted Moved, observed Moved | match", using "MISMATCH" in capitals when they do not match;
+- one blank line comes before "Prediction demo 1: correct belief" and one before "Prediction demo 2: belief wrongly includes a wall at (6, 3)";
+- there is NO blank line before the two final note lines:
+  "Note: in these demos the belief is replaced by the observation after every step."
+  "How beliefs are corrected is decided in Stage 3."
+Run ai_hologram and compare its whole output with Section 5.5 line by line before reporting.
+
+Documentation (these two owner-file edits are authorized by the approved plan for this sub-stage only; change nothing else in either file):
+5. README.md: replace ONLY the paragraph that begins "**Current status: Stage 1" with the exact text in plan Section 9.2 (without the leading "> "). Keep the "## Current status" heading and everything else unchanged.
+6. docs/DECISIONS.md: append five rows, D-014 to D-018, after the D-013 row, using the existing six-column format of the table (ID | Date | Decision | Reason | Alternatives considered | Decided by). Use the date 2026-10-19 and "Owner" for each row, and copy the Decision, Reason, and Alternatives text exactly from plan Section 8. Each row must start with "| D-0" at the very start of the line: no leading spaces, no "- ", and no blank lines between rows. Do not change any existing row.
+
+From the start:
+- every new file has the three-part header (Purpose / "Introduced in Stage 2" / Architecture) and beginner comments;
+- functions under about 40 lines (split helpers as needed) and files under about 200 lines;
+- no exceptions, no assertions, no inheritance.
+
+Do not change any other Stage 1, 2a, or 2b code or test. Do not rename, move, or delete any file, or use refactoring tools on files. Do not edit anything else in docs/ (including docs/stages/ and docs/copilot_prompts/), and do not edit .github/copilot-instructions.md. If anything is unclear or impossible, stop and ask instead of changing the plan's output or weakening a rule or test. When finished, rebuild and run both programs (rule 2g): report the test result (expect 80 checks, 0 failures) and whether the ai_hologram output matched Section 5.5 exactly. Append a handoff note (rule 2f) saying honestly what you actually built and ran. Do not commit.

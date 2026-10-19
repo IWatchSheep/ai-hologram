@@ -13,8 +13,8 @@ void runProjectInfoTests(TestCounter& counter) {
     std::cout << "--- Project information ---\n";
     check(counter, projectName() == "AI Hologram",
           "projectName() returns \"AI Hologram\"");
-    check(counter, currentStage() == 1,
-          "currentStage() returns 1");
+    check(counter, currentStage() == 2,
+          "currentStage() returns 2");
 }
 
 }  // namespace ai_hologram

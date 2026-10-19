@@ -125,3 +125,20 @@ Build and run results: `ai_hologram_tests` built successfully with no compiler w
 === 2026-10-19 — Sub-stage 2b CM6 follow-up ===
 
 Updated only the CM6 wall fixture and expected order in `tests/test_compare.cpp` to use (5, 4) and (4, 5), which distinguish row-then-column from column-then-row ordering. Both fixtures continue to be checked with `isValidWorld`. Rebuilt and ran the test executable: 80 checks, 0 failures. CTest passed `correctness_tests` (1/1), with CLion's bundled MinGW directory on `PATH`. No other test or source file was changed. Nothing was committed.
+
+=== 2026-10-19 — Sub-stage 2c ===
+
+Files created:
+- `src/demo/prediction_demo.h` declares the prediction and comparison demonstrations.
+- `src/demo/prediction_demo.cpp` runs the two hand-written demonstrations through `WorldModel::predict`, the per-demo budget counter, the true environment, and prediction comparison. The wrong belief is at (6, 3); each demo replaces its belief with the observation after each step as a demonstration shortcut.
+
+Files changed:
+- `CMakeLists.txt` registers the new demo files.
+- `src/main.cpp` updates the Stage 2 header and runs the scripted and prediction demonstrations.
+- `src/core/project_info.cpp` and P2 in `tests/test_project_info.cpp` now report/check stage 2.
+- `README.md` updates only the current-status paragraph; `docs/DECISIONS.md` appends D-014 through D-018.
+- This note is appended; earlier notes were left intact.
+
+Build and run results: all project targets rebuilt successfully with no compiler warnings. The test executable reported `80 checks, 0 failures`; CTest passed `correctness_tests` (1/1). `ai_hologram` ran, and its complete 56-line output matched plan Section 5.5 line by line. The demos each used five model evaluations; demo 1 reported zero mismatches and demo 2 reported one mismatch. Use **Build → Build Project** before running CTest.
+
+The invalid-layout and unavailable-prediction paths were not exercised; the fixed layouts are valid and each budget limit is 10 for five actions. No plan conflict or other uncertainty was found. Nothing was committed.

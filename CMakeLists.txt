@@ -43,6 +43,8 @@ add_library(ai_hologram_core STATIC
     src/world/environment.cpp
     src/demo/scripted_demo.h
     src/demo/scripted_demo.cpp
+    src/demo/prediction_demo.h
+    src/demo/prediction_demo.cpp
     src/model/belief.h
     src/model/prediction.h
     src/model/budget_counter.h

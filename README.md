@@ -6,7 +6,7 @@
 
 ## Current status
 
-**Current status: Stage 1 — grid world.** The project contains a 10×10 grid world with movement and pushing rules, a text display, a hand-written scripted demonstration, and correctness tests for every rule. **No reasoning components exist yet. No experiments have been run.** Files in `results/` are organizational examples, not experimental findings.
+**Current status: Stage 2 — prediction and comparison.** The project contains a 10×10 grid world with tested movement rules, plus a world model that predicts the result of an action from a belief (which may be wrong), a budget counter that every prediction must go through, and a comparison that reports exactly how a prediction differs from what was observed. Hand-written demonstrations show a correct belief and a wrong belief. **No reasoning components exist yet: nothing plans, chooses actions, or corrects beliefs. No experiments have been run.** Files in `results/` are organizational examples, not experimental findings.
 
 ## Where to start reading
 
