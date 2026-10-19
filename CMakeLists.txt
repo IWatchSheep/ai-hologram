@@ -43,6 +43,12 @@ add_library(ai_hologram_core STATIC
     src/world/environment.cpp
     src/demo/scripted_demo.h
     src/demo/scripted_demo.cpp
+    src/model/belief.h
+    src/model/prediction.h
+    src/model/budget_counter.h
+    src/model/budget_counter.cpp
+    src/model/world_model.h
+    src/model/world_model.cpp
 )
 
 # Tell this target and its users to search src/ when resolving project headers.
@@ -69,6 +75,8 @@ add_executable(ai_hologram_tests
     tests/test_world_text.cpp
     tests/test_rules.cpp
     tests/test_environment.cpp
+    tests/test_budget_counter.cpp
+    tests/test_world_model.cpp
 )
 
 # Linking lets the test program call functions from the shared core library.

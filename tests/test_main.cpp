@@ -12,6 +12,8 @@ int main() {
     ai_hologram::runWorldTextTests(counter);
     ai_hologram::runRulesTests(counter);
     ai_hologram::runEnvironmentTests(counter);
+    ai_hologram::runBudgetCounterTests(counter);
+    ai_hologram::runWorldModelTests(counter);
 
     std::cout << counter.checks << " checks, " << counter.failures << " failures\n";
     return counter.failures == 0 ? 0 : 1;

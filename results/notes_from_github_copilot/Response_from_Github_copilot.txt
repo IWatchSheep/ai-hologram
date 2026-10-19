@@ -86,3 +86,22 @@ Files created or changed:
 Build and run results: the project built with the CLion-bundled CMake and MinGW tools without compiler warnings. CTest passed `correctness_tests` (1/1). The `ai_hologram` output was compared byte-for-byte with the Section 5.3 output, including Windows line endings, and matched exactly.
 
 No behavior uncertainty or document conflict was found. Nothing was committed.
+
+=== 2026-10-19 — Sub-stage 2a ===
+
+Files created:
+- `src/model/belief.h` separates a reasoner's believed world from the true world.
+- `src/model/prediction.h` stores the requested action, predicted outcome, and next state.
+- `src/model/budget_counter.h` and `.cpp` count model evaluations and stop at the configured limit; negative limits act as zero.
+- `src/model/world_model.h` and `.cpp` predict from a belief using the default rules or a supplied action model. An empty action model falls back to the default. Each prediction first uses one budget evaluation.
+- `tests/test_budget_counter.cpp` covers BC1–BC4; `tests/test_world_model.cpp` covers WM1–WM8, including valid-world fixtures and the explicitly invalid belief case.
+
+Files changed:
+- `CMakeLists.txt` registers the model sources and tests.
+- `tests/test_suites.h` declares the new test groups; `tests/test_main.cpp` runs them.
+- `src/core/project_info.cpp` and Stage 1 rules and tests were not changed; `currentStage()` remains 1.
+- This note is appended; earlier notes were left intact.
+
+Build and run results: the complete project built successfully with no compiler warnings. The test executable reported `59 checks, 0 failures`; CTest passed `correctness_tests` (1/1). The `ai_hologram` executable ran and printed the unchanged Stage 1 scripted demonstration, ending with `Goal reached: yes` and `Steps taken: 5`. Use **Build → Build Project** in CLion before running CTest.
+
+No behavior uncertainty or plan conflict was found. Nothing was committed.
