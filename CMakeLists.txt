@@ -1,6 +1,47 @@
-cmake_minimum_required(VERSION 4.3)
-project(ai_hologram)
+# CMake is a build-configuration tool. It reads this file and generates the
+# instructions used to compile and link the project's C++ files.
+# This file selects the language rules, compiler warnings, and build targets.
 
+# Require CMake 3.20 or newer. This is the minimum version needed by the
+# project's planned CTest command, `ctest --test-dir`.
+cmake_minimum_required(VERSION 3.20)
+
+# Give the project its name, version, and implementation language.
+project(ai_hologram VERSION 0.0.0 LANGUAGES CXX)
+
+# Use the C++17 language standard. "Required" means do not silently fall back
+# to an older standard. Turning extensions off avoids compiler-specific
+# additions, keeping the code within standard C++.
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_executable(ai_hologram main.cpp)
+# Ask compilers to report likely mistakes and questionable code. Warnings are
+# not errors: they inform the learner without making every warning stop a build.
+if(MSVC)
+    # /W4 enables a broad, useful level of warnings in Microsoft's compiler.
+    add_compile_options(/W4)
+else()
+    # These enable common, extra, and standard-conformance warnings elsewhere.
+    add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
+# A target is one named result CMake knows how to build. A library is compiled
+# code for other targets to use; unlike a program, it has no main() entry point.
+add_library(ai_hologram_core STATIC
+    src/core/project_info.cpp
+)
+
+# Tell this target and its users to search src/ when resolving project headers.
+# PUBLIC makes this include path available to code that links to the library.
+target_include_directories(ai_hologram_core PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+# An executable target is a runnable program with its own main() function.
+add_executable(ai_hologram
+    src/main.cpp
+)
+
+# Linking connects a program with the compiled library code it calls.
+target_link_libraries(ai_hologram PRIVATE ai_hologram_core)
