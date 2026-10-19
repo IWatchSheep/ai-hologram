@@ -13,6 +13,7 @@ namespace ai_hologram {
 class Environment {
 public:
     // A constructor creates an Environment with the supplied initial world.
+    // explicit prevents a WorldState from being converted into an Environment by accident.
     explicit Environment(const WorldState& initialState);
 
     ActionResult step(Action action);

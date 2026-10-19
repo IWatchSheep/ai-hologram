@@ -6,7 +6,7 @@
 
 ## Current status
 
-**Current status: Stage 0 — repository foundation.** The project currently contains only a minimal C++ program and one basic test that check the build setup. **No reasoning components exist yet. No experiments have been run.** Files in `results/` are organizational examples, not experimental findings.
+**Current status: Stage 1 — grid world.** The project contains a 10×10 grid world with movement and pushing rules, a text display, a hand-written scripted demonstration, and correctness tests for every rule. **No reasoning components exist yet. No experiments have been run.** Files in `results/` are organizational examples, not experimental findings.
 
 ## Where to start reading
 

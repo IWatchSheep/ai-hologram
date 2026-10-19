@@ -41,6 +41,8 @@ add_library(ai_hologram_core STATIC
     src/world/world_text.cpp
     src/world/environment.h
     src/world/environment.cpp
+    src/demo/scripted_demo.h
+    src/demo/scripted_demo.cpp
 )
 
 # Tell this target and its users to search src/ when resolving project headers.

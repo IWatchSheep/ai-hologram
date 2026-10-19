@@ -7,6 +7,7 @@
 namespace ai_hologram {
 
 Environment::Environment(const WorldState& initialState)
+    // The initializer list copies the supplied world into the Environment's state.
     : currentState_(initialState) {}
 
 ActionResult Environment::step(const Action action) {

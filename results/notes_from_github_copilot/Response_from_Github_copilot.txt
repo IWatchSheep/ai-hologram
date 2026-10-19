@@ -57,3 +57,32 @@ Files created or changed:
 Build and run results: all project targets built successfully with the configured CMake build and no compiler warnings. The test executable reported `47 checks, 0 failures`; CTest passed `correctness_tests` (1/1). The program executable was not run. The deliberate failure check was not performed, as requested.
 
 No behavior uncertainty or document conflict was found. Nothing was committed.
+
+=== 2026-10-19 08:56 — Sub-stage 1c follow-up ===
+
+Files changed:
+- `src/demo/scripted_demo.cpp` now reports an invalid demo layout to the output stream and returns instead of throwing, prints the step-section blank line once before the loop, and moves step execution and output into a small helper in the unnamed namespace.
+- This handoff file has this appended note only; earlier notes were left intact.
+
+Build and run results: the project rebuilt with no compiler warnings. CTest passed `correctness_tests` (1/1). The `ai_hologram` output was compared byte-for-byte with the Section 5.3 output, including Windows line endings, and matched exactly. The invalid-layout branch was not exercised because the approved fixed layout is valid.
+
+No behavior uncertainty or document conflict was found. Nothing was committed.
+
+=== 2026-10-19 08:46 — Sub-stage 1c ===
+
+Files created or changed:
+- `CMakeLists.txt` adds the scripted demonstration implementation to `ai_hologram_core`.
+- `src/demo/scripted_demo.h` declares the scripted demonstration function and documents its caller-provided output stream.
+- `src/demo/scripted_demo.cpp` parses the approved layout, runs the five hand-written East actions, and prints each result and the final world.
+- `src/main.cpp` prints the three Stage 1 header lines and calls the scripted demonstration.
+- `src/core/project_info.cpp` now reports the current stage as 1.
+- `tests/test_project_info.cpp` updates P2 to check that the current stage is 1.
+- `README.md` replaces only the current-status paragraph with the approved Stage 1 wording.
+- `docs/DECISIONS.md` appends decisions D-007 through D-011 using the existing table format.
+- `src/world/environment.h` explains what `explicit` prevents for the constructor.
+- `src/world/environment.cpp` explains how the constructor initializer list initializes the environment's state.
+- This handoff file has this appended note only; earlier notes were left intact.
+
+Build and run results: the project built with the CLion-bundled CMake and MinGW tools without compiler warnings. CTest passed `correctness_tests` (1/1). The `ai_hologram` output was compared byte-for-byte with the Section 5.3 output, including Windows line endings, and matched exactly.
+
+No behavior uncertainty or document conflict was found. Nothing was committed.
