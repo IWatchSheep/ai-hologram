@@ -5,3 +5,42 @@ The note is located at `results/notes_from_github_copilot/Response_from_Github_c
 I checked the current README. It has the title “ai-hologram,” an “About” summary using the required proposed-design wording, the required Stage 0 status, links to the brief/decisions/experiment log/stage plans, CLion build instructions, Windows PowerShell test commands, requirements, the development roles, and the licence reference. It describes the two-agent architecture as proposed, not as a demonstrated capability.
 
 In this turn, I replaced the previous note text with this current handoff. I did not change the README or any other file, and I did not commit.
+
+=== 2026-10-19 08:04 — Sub-stage 1a ===
+
+Files created or changed:
+- `src/world/position.h` defines grid coordinates and position comparisons.
+- `src/world/action.h` and `src/world/action.cpp` define the four directions and their names and offsets.
+- `src/world/world_state.h` and `src/world/world_state.cpp` define the grid representation, comparisons, bounds-safe wall checks, validity checks, and goal check.
+- `src/world/world_text.h` and `src/world/world_text.cpp` parse and render the approved ten-by-ten text format.
+- `tests/test_support.h` and `tests/test_support.cpp` provide the shared automatic check counter and PASS/FAIL reporter.
+- `tests/test_suites.h` declares the test groups used by the single test runner.
+- `tests/test_project_info.cpp` checks the project name and that the stage remains 0.
+- `tests/test_world_text.cpp` tests parsing, rendering, marker handling, malformed input, and world validity.
+- `tests/test_main.cpp` calls the test groups and prints the total.
+- `CMakeLists.txt` adds the sub-stage files and registers the CTest test as `correctness_tests`.
+
+T10 initially appeared to require one valid world containing both `*` and `+`, which is impossible because each marker places a different entity on the single destination. The owner corrected the plan to require three separate round-trip layouts; T10 now tests the demo, `*`, and `+` layouts separately. T9 had reused an invalid combined-marker fixture; its checks now use separate valid `*` and `+` layouts. The parser and validity rules were not changed.
+
+Build and run results: the project built with no warnings. Running the executables without MinGW on `PATH` failed with the missing-DLL Windows exit code `0xc0000135`. With the MinGW runtime on `PATH`, the test executable reported `28 checks, 0 failures`, CTest passed `correctness_tests` (1/1), and `ai_hologram` printed the unchanged Stage 0 output.
+
+No other uncertainty or document conflict remains. Nothing was committed.
+
+=== 2026-10-19 08:15 — Sub-stage 1a follow-up ===
+
+Files changed:
+- `src/world/world_text.cpp` splits text parsing into small helpers in the same unnamed namespace while preserving validation order and error messages.
+- `src/world/world_text.h` explains the first uses of `std::optional` and `std::vector`.
+- `src/world/world_state.cpp` explains why integer coordinates are converted to `std::size_t` for array indexing.
+- `src/world/world_state.h` explains empty-brace value initialization.
+- `src/world/position.h` explains `constexpr` on a function.
+- `src/world/action.cpp` explains `const` on a by-value parameter.
+- `tests/test_world_text.cpp` adds one top comment about the layout-driven file length and optional access; no test logic or expectation changed.
+- This handoff file has this appended note only; earlier notes were left intact.
+
+Build and run results: a clean build of `ai_hologram_tests` and a build of all project targets both completed with no compiler warnings. The test executable reported `28 checks, 0 failures`; CTest passed `correctness_tests` (1/1). `ai_hologram` printed:
+`AI Hologram -- Stage 0`
+`Repository foundation: build, run, and test cycle.`
+`No reasoning components are implemented yet.`
+
+No behavior uncertainty or document conflict was found. The pre-existing uncommitted Stage 1 work and plan changes were preserved. Nothing was committed.

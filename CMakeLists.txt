@@ -30,6 +30,13 @@ endif()
 # code for other targets to use; unlike a program, it has no main() entry point.
 add_library(ai_hologram_core STATIC
     src/core/project_info.cpp
+    src/world/position.h
+    src/world/action.h
+    src/world/action.cpp
+    src/world/world_state.h
+    src/world/world_state.cpp
+    src/world/world_text.h
+    src/world/world_text.cpp
 )
 
 # Tell this target and its users to search src/ when resolving project headers.
@@ -49,6 +56,11 @@ target_link_libraries(ai_hologram PRIVATE ai_hologram_core)
 # This separate program checks the same shared core code as the main program.
 add_executable(ai_hologram_tests
     tests/test_main.cpp
+    tests/test_support.h
+    tests/test_support.cpp
+    tests/test_suites.h
+    tests/test_project_info.cpp
+    tests/test_world_text.cpp
 )
 
 # Linking lets the test program call functions from the shared core library.
@@ -58,4 +70,4 @@ target_link_libraries(ai_hologram_tests PRIVATE ai_hologram_core)
 enable_testing()
 
 # A zero return value means the test passed; a nonzero value means it failed.
-add_test(NAME stage0_tests COMMAND ai_hologram_tests)
+add_test(NAME correctness_tests COMMAND ai_hologram_tests)
