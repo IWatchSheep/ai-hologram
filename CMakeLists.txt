@@ -45,3 +45,17 @@ add_executable(ai_hologram
 
 # Linking connects a program with the compiled library code it calls.
 target_link_libraries(ai_hologram PRIVATE ai_hologram_core)
+
+# This separate program checks the same shared core code as the main program.
+add_executable(ai_hologram_tests
+    tests/test_main.cpp
+)
+
+# Linking lets the test program call functions from the shared core library.
+target_link_libraries(ai_hologram_tests PRIVATE ai_hologram_core)
+
+# CTest runs registered tests and reports whether each program passed or failed.
+enable_testing()
+
+# A zero return value means the test passed; a nonzero value means it failed.
+add_test(NAME stage0_tests COMMAND ai_hologram_tests)
