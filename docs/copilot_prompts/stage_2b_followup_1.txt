@@ -1,0 +1,14 @@
+Sub-stage 2b follow-up 1 (docs/stages/STAGE_02.md v1.3, test CM6).
+
+Sub-stage 2b works: 80 checks, 0 failures, no warnings. One test needs strengthening.
+
+Test CM6 in tests/test_compare.cpp checks that wall differences are reported in row-then-column order (plan 3.4: y = 0 to 9, then x = 0 to 9 within each row). It currently uses wall differences at (4, 4) and (5, 5). Because these lie on a diagonal, column-then-row order would produce the same result, so the test cannot detect a wrong order.
+
+Change ONLY the CM6 fixture so that it uses wall differences at (5, 4) and (4, 5) instead:
+- predicted.walls[4][5] = true;   // cell x = 5, y = 4
+- predicted.walls[5][4] = true;   // cell x = 4, y = 5
+and check that walls[0].cell == Position{5, 4} and walls[1].cell == Position{4, 5}. (Row-then-column order puts (5, 4) first, because its row y = 4 comes before y = 5.)
+
+Both cells are interior and are not the agent's (3, 3), object's (6, 6), or destination's (7, 7) cell, so both fixtures stay valid; keep the existing isValidWorld check. Add a short comment explaining why these two cells are used.
+
+Do not change any other test, any source file, or anything else. Do not rename, move, or delete any file. Do not edit anything in docs/. When finished, append a short handoff note (rule 2f) and rebuild and run the tests (rule 2g), reporting the result honestly. Do not commit.

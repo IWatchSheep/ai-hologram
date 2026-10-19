@@ -14,5 +14,6 @@ void runRulesTests(TestCounter& counter);
 void runEnvironmentTests(TestCounter& counter);
 void runBudgetCounterTests(TestCounter& counter);
 void runWorldModelTests(TestCounter& counter);
+void runCompareTests(TestCounter& counter);
 
 }  // namespace ai_hologram

@@ -105,3 +105,23 @@ Files changed:
 Build and run results: the complete project built successfully with no compiler warnings. The test executable reported `59 checks, 0 failures`; CTest passed `correctness_tests` (1/1). The `ai_hologram` executable ran and printed the unchanged Stage 1 scripted demonstration, ending with `Goal reached: yes` and `Steps taken: 5`. Use **Build → Build Project** in CLion before running CTest.
 
 No behavior uncertainty or plan conflict was found. Nothing was committed.
+
+=== 2026-10-19 — Sub-stage 2b ===
+
+Files created:
+- `src/compare/state_difference.h` and `.cpp` define complete position, wall, and prediction comparisons.
+- `src/compare/difference_text.h` and `.cpp` format differences in the approved order and line format.
+- `tests/test_compare.cpp` covers CM1–CM10 and checks that its world fixtures are valid.
+
+Files changed:
+- `CMakeLists.txt` registers the comparison components and test group.
+- `tests/test_suites.h` declares the comparison test group; `tests/test_main.cpp` runs it.
+- This note is appended; earlier notes were left intact.
+
+Build and run results: `ai_hologram_tests` built successfully with no compiler warnings. With CLion's bundled MinGW directory on `PATH`, the test executable reported `80 checks, 0 failures`; CTest passed `correctness_tests` (1/1). The `ai_hologram` program was not run. Use **Build → Build Project** in CLion before running CTest.
+
+`currentStage()` remains 1. The deliberate failure check was not performed, as requested. No Stage 1 source or tests were changed. Nothing was committed.
+
+=== 2026-10-19 — Sub-stage 2b CM6 follow-up ===
+
+Updated only the CM6 wall fixture and expected order in `tests/test_compare.cpp` to use (5, 4) and (4, 5), which distinguish row-then-column from column-then-row ordering. Both fixtures continue to be checked with `isValidWorld`. Rebuilt and ran the test executable: 80 checks, 0 failures. CTest passed `correctness_tests` (1/1), with CLion's bundled MinGW directory on `PATH`. No other test or source file was changed. Nothing was committed.

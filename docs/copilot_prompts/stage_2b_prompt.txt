@@ -1,0 +1,25 @@
+Read .github/copilot-instructions.md (including rules 2f and 2g), the brief docs/AI_Hologram_Project_Brief_v1.1.txt, and the approved plan docs/stages/STAGE_02.md (v1.3). Sub-stage 2a is committed as 38cf17d.
+
+Implement SUB-STAGE 2b ONLY (plan Section 7, Step 3):
+- Create src/compare/state_difference.h/.cpp exactly as in plan Sections 3.4 and 4.2: PositionDifference, WallDifference, StateDifference, hasDifferences, compareStates, PredictionComparison, outcomesDiffer, matches, and comparePrediction.
+- Create src/compare/difference_text.h/.cpp with describeDifferences, producing EXACTLY the line formats in plan 4.2 (two leading spaces, a hyphen, a space; positions written "(x, y)"; walls described as "blocked" or "free"), in the order of plan 3.4: agent, object, destination, then walls row by row from the top (y = 0 to 9), left to right within each row (x = 0 to 9).
+- Create tests/test_compare.cpp covering CM1-CM10 (plan 6.4), and register the new files in CMakeLists.txt, tests/test_suites.h, and tests/test_main.cpp.
+- Do not change any Stage 1 or sub-stage 2a code or test. Leave currentStage() returning 1.
+
+Comparison rules to follow exactly:
+- compareStates reports EVERY difference, never only the first.
+- A prediction matches only if the outcomes are equal AND there are no state differences.
+- Comparison never changes its inputs, and reads walls ONLY with its own 0-9 loop counters. Never index the walls array with a stored agent, object, or destination position.
+
+Test fixtures (plan 6.4) - very important:
+- Every WorldState used in the comparison tests must be valid under STAGE_01.md 3.6, and each test must check isValidWorld on its fixtures.
+- Wall differences: change only an interior cell (x and y each from 1 to 8) that is not the agent's, object's, or destination's cell. Never change a border cell.
+- Agent, object, or destination differences: keep the changed position inside the grid, on a non-wall cell, and never let the agent and object share a cell.
+- Do not weaken any Stage 1 validation rule to make a fixture work.
+
+From the start:
+- every new file has the three-part header (Purpose / "Introduced in Stage 2" / Architecture) and beginner comments, including why comparison never indexes walls with stored positions (plan 9.1);
+- functions under about 40 lines and files under about 200 lines;
+- no exceptions, no assertions, no inheritance.
+
+Do NOT do the deliberate failure check; the owner will do that. Do not rename, move, or delete any file, or use refactoring tools on files. Do not touch any file not listed above, and do not edit anything in docs/ (including docs/copilot_prompts/). If anything is unclear or impossible, stop and ask instead of weakening a rule or test. When finished, append a handoff note (rule 2f) saying honestly what you actually built and ran. Do not commit.
