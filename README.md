@@ -1,2 +1,2 @@
 # ai-hologram
-Two fallible reasoning agents that detect and correct each other’s logical errors, a C++17 grid-world experiment inspired by holograms and prediction error.
+A research project investigating whether two cooperating reasoning agents can detect and correct each other’s errors — a proposed C++17 grid-world experiment inspired by holograms and prediction error. Not yet implemented.
