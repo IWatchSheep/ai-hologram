@@ -513,19 +513,31 @@ General criteria (Brief, Section 14) plus Stage 0 specifics:
 ## 9. What actually happened (filled in by the owner at the end)
 
 ```
-Date completed:
-Commit hash of tag stage-0:
-Compiler and version used (shown in CLion's CMake output):
-CMake version:
+Date completed: 2026-10-19
+Commit hash of tag stage-0: the commit titled "Stage 0: record stage completion" (run: git show stage-0)
+Compiler and version used (shown in CLion's CMake output): GCC 15.2.0 (MinGW, bundled with CLion 2026.2.3.1)
+CMake version: 4.3.1 (bundled with CLion)
 
-Step 1a: preservation commit hash (or "all files already committed"):
+Step 1a: preservation commit hash (or "all files already committed"): abe60bb
 
-Did everything go as planned?  yes / no
+Did everything go as planned?  yes, with the differences below
 Differences from the plan, and why:
+- The brief v1.1 header lines ("pending owner approval", "No code has been written") describe the brief at the time it was written. It was approved on 2026-10-19 (see DECISIONS.md D-001) and deliberately left unchanged so the approved text matches what was reviewed.
+- The top-level main.cpp removed in Step 3 was the owner's own Hello World placeholder (commit 6bf3d44), not CLion's unmodified template. Commit c01f3d0 had emptied the template, so the project could not build until the placeholder was added.
+- The README was edited both on GitHub (c14ba65) and locally (9063eaf) with identical text; the two histories were merged in 3536000.
+- Copilot added one word ("existing") to rule 2d in copilot-instructions.md; the owner removed it before committing so the rule matched the plan word for word.
+- Copilot's first versions of the Step 3 and Step 4 code lacked the beginner comments required by the plan; a comments-only pass was requested each time, and the code itself was confirmed unchanged.
 
 Problems encountered and how they were solved:
+- Running CTest from a plain PowerShell terminal failed with exit code 0xc0000135 (missing libgcc_s_seh-1.dll). Solved by adding CLion's bin\mingw\bin folder to the PATH for the terminal session and running ctest by its full path (commands are in the README).
+- The first attempt at the deliberate failure check passed by mistake because the test program had not been rebuilt. Solved by using Build -> Build Project before running CTest; the failure was then reported correctly.
 
 Anything learned that should change future stage plans:
+- Programs built with CLion's MinGW need CLion's bin\mingw\bin folder on the PATH when run outside CLion, and ctest is not on the PATH. Future stage plans should give the full PowerShell commands, or use All CTest inside CLion.
+- CTest only runs the last-built test program; it does not rebuild. The CLion hammer builds only the selected run configuration, so after changing code use Build -> Build Project before running CTest.
+- When asking Copilot to implement a step, explicitly require the beginner comments and header blocks from the plan; it tended to write minimal comments otherwise.
+- Edit files in one place only. If something is edited on GitHub, run git pull before working locally.
+
 ```
 
 ---
