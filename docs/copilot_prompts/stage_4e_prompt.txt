@@ -1,0 +1,122 @@
+You are the project's coding assistant, in place of GitHub Copilot. Every rule in .github/copilot-instructions.md that is addressed to Copilot applies to you, including rules 2a-2g. Read that file, docs/stages/STAGE_04.md (v1.2.2: Sections 3.9, 3.12 (the instrumentation exception IE-1, especially H3 and H4 and "Two kinds of attachment"), 4.2, 6.6 (SH1-SH6), 7, 8 (D-039, D-040, D-043), 9.1 and 13), and protocol docs/EXPERIMENT_1_PROTOCOL.md Phase B 12.4 and 12.5 items 2-4, before changing anything. Never run git commit, git push, or any command that changes Git history; leave all Git operations to the owner. Sub-stages 4a-4d are complete and committed (537 checks, 0 failures).
+
+Implement SUB-STAGE 4e ONLY (plan Section 7, Step 6): the observers H3 and H4 (watch-only), and shadow evaluation of every observed computation (effective use, detection opportunity). No CSV, no program-output change.
+
+THIS SUB-STAGE TOUCHES C1'S CODE AGAIN, under IE-1 (approved by the owner). You may make ONLY the H3 and H4 edits below. The observers must be WATCH-ONLY, enforced by types: they receive only const references, const pointers or copies; every observer function returns void; no agent code ever reads a value from an observer, and nothing an agent decides may depend on whether an observer is attached. You must NOT change anything about C1's or C0's decisions, planning, safety rule, investigation, verification, corrections, safe stops, cache semantics (what is cached, when it is cleared, what counts as a hit) or budget accounting (what is charged, when, how much). If you think anything else in a Stage 3 file must change, STOP and report it.
+
+A. Stage 3 edits permitted by IE-1 (only these):
+
+1. NEW src/agent/computation_observer.h (H3/H4 shared type; three-part header saying it is the IE-1 watch-only observer):
+       struct ComputationObserver {
+           // After each CHARGED evaluation: the state, the action, the variant model used
+           // (nullptr when the reasoner's own current model was used), and the result.
+           std::function<void(const WorldState&, Action, const ActionModel*, const Prediction&)> onEvaluation;
+           // Each read of one cell's dead status through readDeadStatus.
+           std::function<void(Position, bool)> onDeadRead;
+           // Each heuristic value computed by heuristic().
+           std::function<void(const WorldState&, int)> onHeuristic;
+       };
+   Empty functions are allowed and simply not called.
+
+2. H3, src/agent/step_predictor.h/.cpp: add `void setObserver(const ComputationObserver* observer);` and a private `const ComputationObserver* observer_ = nullptr;`. In predict(): AFTER a charged evaluation succeeds (after ++usedTotal_ and caching, just before `return result;` on that path), if observer_ and observer_->onEvaluation: call onEvaluation(state, action, nullptr, *result). In predictVariant(): after a charged evaluation succeeds, call onEvaluation(state, action, &model, *result). Cache hits and refused (unaffordable) predictions are never reported. Nothing else in StepPredictor changes.
+
+3. H4:
+   - src/agent/dead_squares.h/.cpp: DeadSquareMap gets `const ComputationObserver* observer = nullptr;` (computeDeadSquares leaves it null). DeadSquareCache gets a public `const ComputationObserver* observer = nullptr;` and get() sets `map.observer = observer;` on EVERY call, just before returning (whether or not it recomputed). Add `bool readDeadStatus(const DeadSquareMap& map, Position cell);` which returns exactly map.dead[cell.y][cell.x] and, if map.observer and its onDeadRead are set, calls onDeadRead(cell, value) first. In localCheckSaysNotDead, the read of `!map.dead[ahead...]` becomes `!readDeadStatus(map, ahead)` (same position in the condition, so it is still read only when both neighbours are believed free). The analysis itself (computeDeadSquares, applyOverrides) is writing, not reading: do not touch it.
+   - The other five read sites become readDeadStatus with exactly the same cell and the same position in their conditions: heuristic.cpp (the read of the object cell), investigation.cpp checkConsequence (the read of p), planner.cpp objectOnDeadSquare, single_agent_choose.cpp objectDead (keep its isInsideGrid check before the read), verification.cpp isDeadAt.
+   - heuristic.cpp: after computing the value (on every return path, including the infinite one), if map.observer and its onHeuristic are set, call onHeuristic(state, value).
+   - grep src/agent for any other `.dead[` read: if you find one outside computeDeadSquares/applyOverrides, STOP and report it (the plan says there are exactly six read sites).
+   Each changed Stage 3 file gets one line added to its header's Architecture comment noting the Stage 4 IE-1 H3 or H4 addition. Nothing else in src/agent, src/model, src/world, src/compare or src/demo changes.
+
+B. Experimenter code:
+
+4. NEW src/experiment/shadow.h/.cpp (plan 3.9; pure functions, no budget, never visible to agents):
+   - `std::optional<WorldState> shadowInput(const FaultEvent& event, const WorldState& state, const ScoredView& view, const WorldState& trueLayout, Position trueObject);`
+       F1: if isWall(state, c) == isWall(trueLayout, c) -> nullopt; otherwise a copy of state with c set to its true status.
+       F2, F5: if view.belief->object == trueObject or state.object != view.belief->object -> nullopt; otherwise a copy with object = trueObject.
+       F3, F4: nullopt.
+   - `bool evaluationEffective(const FaultEvent& event, const WorldState& state, Action action, const ActionModel& modelUsed, const Prediction& result, const ScoredView& view, const WorldState& trueLayout, Position trueObject);`
+       F4: false.
+       F3 (v1.2.2): only if action == event.action and !view.model->isRestored(action); then effective if the result differs from applyAction(state, action).
+       F1, F2, F5: shadow = shadowInput(...); none -> false; !isValidWorld(*shadow) -> true; otherwise shadowResult = modelUsed(*shadow, action), effective if the predictions differ.
+     "The predictions differ" (exactly as in 4d's committedEffective): outcomes differ, or compareFootprint finds a difference on the cells of computeFootprintForTwoPredictions(state, result.outcome, shadowState, shadowResult.outcome, action), comparing result.state with shadowResult.state. (For F3, use state as both beliefs.) You may move 4d's comparison into a shared helper here and call it from scorer_commit.cpp; the 4d results must not change.
+   - `std::optional<DeadSquareMap> shadowMap(const FaultEvent& event, const ScoredView& view, const WorldState& trueLayout);`
+       F1: if the belief already has the true status at c -> nullopt; otherwise computeDeadSquares(belief with c set true, *notDeadOverrides, *deadOverrides, localCounts).
+       F4: computeDeadSquares(*belief, notDeadOverrides with ONE occurrence of the event's cell removed, *deadOverrides, localCounts).
+       Others: nullopt.
+     Always use a LOCAL FreeComputationCounts (never the agent's counters). The returned maps have no observer, so shadow computations are never observed (no recursion).
+
+5. src/experiment/scorer.h/.cpp (4d files): add
+       void attachView(const ScoredView& view);          // the live view used by the three callbacks below
+       void onEvaluation(const WorldState& state, Action action, const ActionModel* variantModel, const Prediction& result);
+       void onDeadRead(Position cell, bool value);
+       void onHeuristic(const WorldState& state, int value);
+       int observedEvaluations() const;                  // counts onEvaluation calls (IE-T3)
+   Each callback looks only at events that are activated && endState == None && active && have no opportunityStep yet, and sets opportunityStep = current step when the use is effective:
+       onEvaluation: modelUsed = *variantModel, or view.model->current() when variantModel is null; trueObject = trueHistory->back().state.object; evaluationEffective(...).
+       onDeadRead (F1, F4 only): m = shadowMap(...); effective if m exists and m->dead[cell] != value.
+       onHeuristic: F1, F4: m = shadowMap(...); effective if m exists and heuristic(state, *m, localCounts) != value. F2, F5: s = shadowInput(...); none -> skip; !isValidWorld(*s) -> effective; otherwise effective if heuristic(*s, currentMap, localCounts) != value, where currentMap = computeDeadSquares(*belief, *notDeadOverrides, *deadOverrides, localCounts). F3: none.
+   observedEvaluations counts every onEvaluation call, effective or not.
+
+6. src/experiment/fault_run.h/.cpp: both runWithFaults overloads get a last parameter `bool observe = true`. When observe is true: before the first decision, scorer.attachView(viewOf(agent.state)); build a ComputationObserver whose three functions call scorer.onEvaluation / onDeadRead / onHeuristic; agent.state.predictor.setObserver(&observer); agent.state.deadCache.observer = &observer. On EVERY return path, reset both to nullptr (as the hook is reset), so the agent never points at a destroyed observer. When observe is false, attach nothing. FaultRunResult gains `int observedEvaluations = 0;`. Nothing else changes.
+
+C. Tests. New files tests/test_shadow.cpp, tests/test_shadow_sites.cpp, tests/test_shadow_runs.cpp (split further if needed). Register them (after the scorer tests). One statement per line; braces always; valid worlds checked. Settings AgentSettings{200, 5, 100, 3}. D = Stage 3 demo layout; D2 = D with a wall at (4, 3). A "recording observer" is a ComputationObserver whose functions append what they receive to vectors in the test.
+
+   - SH1 (evaluationEffective / shadowMap / heuristic, with hand-built views and activated events; plan 6.6 SH1):
+       F1 (4, 3) BlockedToFree, belief = D2 without the wall (= D), true layout D2: own-model East from the belief is effective; North is not.
+       F2, belief = D with object (5, 2), true object (5, 3): East from the belief with the agent at (4, 2) is effective; West from that state is not; a state with agent (5, 3) and object (5, 2) has an invalid shadow, so North from it is effective.
+       F3 East Right on D with the agent at (4, 3), model = makeFaultyModel(East Right) for the belief's model: an East evaluation whose result is the faulty prediction is effective; an East evaluation with the standard rule's result is not; West is not.
+       F4 (1, 1) on D with notDeadOverrides {(1, 1)}: the shadow map has (1, 1) dead and the real map has it not dead (a read of (1, 1) is effective); (2, 2) is equal in both (not effective); heuristic of D with the object at (1, 1) and the agent at (3, 3) is 12 with the real map and kInfiniteHeuristic with the shadow map (effective).
+   - SH2 / IE-T2 with the observer: runSingleAgent with a recording observer set by hand on the agent (predictor.setObserver and deadCache.observer) gives exactly the same RunResult lines and counts as without it, for C1 on D, C1 on true D2 with belief D, C0 on D and C0 on true D2 with belief D. Reset the observer pointers after each run.
+   - SH3 / IE-T3: in those four runs, the number of onEvaluation calls equals totalEvaluations(); and for all 16 demonstration-experiment runs (as FR2), FaultRunResult.observedEvaluations equals run.evaluations.
+   - SH4 / IE-T4: the 16 demonstration-experiment runs with observe = false and observe = true give identical outcomes, evaluations, and for every event identical strictStep, mismatchStep, endState, endStep, correctingId, correctionStatus, and identical RunScore values.
+   - SH5: with observe = true, the opportunityStep of every event is exactly ("-" = none):
+         event       C1-opportunity  C0-opportunity
+         500000-1-1  -               -
+         500000-1-2  -               -
+         500000-1-3  -               -
+         500000-2-1  -               -
+         500000-2-2  9               -
+         500000-2-3  -               -
+         500001-1-1  4               -
+         500001-1-2  6               -
+         500001-1-3  -               -
+         500001-2-1  4               -
+         500001-2-2  4               -
+         500001-2-3  -               -
+         500002-1-1  11              11
+         500002-1-2  -               -
+         500002-1-3  7               -
+         500002-2-1  11              11
+         500002-2-2  11              11
+         500002-2-3  12              -
+         500003-1-1  9               -
+         500003-1-2  -               -
+         500003-1-3  -               -
+         500003-2-1  1               1
+         500003-2-2  10              10
+         500003-2-3  10              10
+     (SC1's run: opportunityStep 1.)
+   - SH6 (each of the six read sites is observed; plan 6.6 SH6). With a recording observer on the map (map.observer = &recorder, or the agent's deadCache.observer for (3)), the true map of D (no overrides), and every reported value equal to the map's stored status:
+       1. heuristic(D's start state, map, counts): exactly one dead read, (5, 3) false, and one heuristic value, 4.
+       2. search on D (as PL1) with an estimate function that always returns 0: at least one dead read and no heuristic value.
+       3. chooseCautiousAction() on a C1 built on D (as C1-6a), with the agent's deadCache.observer set: at least one read of (5, 3) with value false.
+       4. checkConsequence(D, map, history of one observation of D, counts): exactly two reads, (5, 3) false then (5, 2) false, and the result FullStateDeadEnd.
+       5. localCheckSaysNotDead(D, map, (5, 3), counts): exactly one read, (5, 2) false.
+       6. trapV2Test at (5, 3) on D (as VF9's D case): the reads include (6, 3) false, and the result is Rejected.
+   - Every earlier test (FR, FI, SC, IE-T1/IE-T2) must still pass unchanged.
+
+From the start:
+- every new file has the three-part header and beginner comments (what a shadow computation is and why it never uses the reasoner's budget; why the observer can only watch, in the owner's words "the chain can be replaced by the camera", and why ours cannot pull; why trap-status READS are observed, not whole analysis runs, D-040);
+- functions under about 40 lines; files under about 200 lines (split and say so); one statement per line; braces always;
+- no exceptions, no assertions, no inheritance, no randomness.
+
+Do not change any other Stage 1-3 code or test, or any 4a-4c file except fault_run.*; in 4d files, add only what item 5 says (and the optional shared comparison helper). Do not create scratch, debug or temporary files, and build only in CLion's cmake-build-debug. Do not rename, move, or delete any file. Do not edit anything in docs/, .github/, .cursor/, LICENSE, .gitignore or results/ (except appending the handoff note).
+
+If an expected value above does not match, STOP and report the actual value and what you found. Never change an expected value, and never change C1, C0 or the scoring rules to make a value match.
+
+When finished:
+- rebuild (rule 2g) and report the exact test result line (all 537 earlier checks must still pass);
+- run the ai_hologram program and confirm its output is unchanged (102 lines, 94 non-empty);
+- list every line you changed in Stage 3 files (H3, H4), so the owner and Claude can check them against IE-1;
+- append a handoff note (rule 2f) saying honestly what you built and ran;
+- do not commit.
