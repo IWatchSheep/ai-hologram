@@ -14,6 +14,7 @@
 #include "agent/single_agent.h"
 #include "experiment/fault_event.h"
 #include "experiment/fault_injector.h"
+#include "experiment/scorer.h"
 #include "world/world_state.h"
 
 #include <vector>
@@ -26,6 +27,8 @@ struct FaultRunResult {
     RunResult run;
     int decisionSteps = 0;
     std::vector<ActivationRecord> activations;
+    std::vector<EventScore> eventScores;
+    RunScore score;
 };
 
 // Exactly the Stage 3 runSingleAgent loop for C1, plus three things:

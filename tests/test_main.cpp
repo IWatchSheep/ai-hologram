@@ -31,6 +31,9 @@ int main() {
     ai_hologram::runFaultEventSetTests(counter);
     ai_hologram::runFaultInjectorTests(counter);
     ai_hologram::runFaultRunTests(counter);
+    ai_hologram::runScorerTests(counter);
+    ai_hologram::runScorerLifeTests(counter);
+    ai_hologram::runScorerDemoTests(counter);
 
     std::cout << counter.checks << " checks, " << counter.failures << " failures\n";
     return counter.failures == 0 ? 0 : 1;

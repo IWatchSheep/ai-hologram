@@ -10,6 +10,7 @@
 #include "experiment/fault_run.h"
 
 #include "agent/agent_log.h"
+#include "experiment/scorer.h"
 #include "world/environment.h"
 
 #include <functional>
@@ -45,8 +46,10 @@ RunResult buildRunResult(const std::string& outcome, int worldSteps,
 // Empties C1's hook first, so the agent is never left pointing at a
 // destroyed injector, then finishes its run exactly as run_loop does.
 FaultRunResult finishRun(SingleAgent& agent, FaultInjector& injector,
+                         Scorer& scorer,
                          const std::string& outcome, int worldSteps) {
     agent.state.activationHook = std::function<void(int)>{};
+    scorer.finish(viewOf(agent.state));
     FaultRunResult result;
     result.run = buildRunResult(outcome, worldSteps, agent.safeStopCount(),
                                 agent.mismatchCount(),
@@ -55,18 +58,24 @@ FaultRunResult finishRun(SingleAgent& agent, FaultInjector& injector,
                                 agent.totalEvaluations(), agent.logLines());
     result.decisionSteps = agent.state.decisionStep;
     result.activations = injector.records();
+    result.eventScores = scorer.events();
+    result.score = scorer.run();
     return result;
 }
 
 // The same for C0, whose counts are 0 and which writes no log lines.
 FaultRunResult finishRun(NaiveAgent& agent, FaultInjector& injector,
+                         Scorer& scorer,
                          const std::string& outcome, int worldSteps) {
     agent.state.activationHook = std::function<void(int)>{};
+    scorer.finish(viewOf(agent.state));
     FaultRunResult result;
     result.run = buildRunResult(outcome, worldSteps, 0, 0, 0, 0,
                                 agent.totalEvaluations(), {});
     result.decisionSteps = agent.state.decisionStep;
     result.activations = injector.records();
+    result.eventScores = scorer.events();
+    result.score = scorer.run();
     return result;
 }
 
@@ -83,20 +92,24 @@ FaultRunResult runWithFaults(const WorldState& trueInitialState,
     Environment environment(trueInitialState);
     std::vector<Observation> trueHistory;
     FaultInjector injector(events, &trueHistory);
-    agent.state.activationHook = [&injector, &agent](int step) {
+    Scorer scorer(events, trueInitialState, &trueHistory);
+    agent.state.activationHook = [&scorer, &injector, &agent](int step) {
+        scorer.endPhaseA(viewOf(agent.state), step);
         injector.atActivationPoint(partsOf(agent.state), step);
+        scorer.afterActivation(viewOf(agent.state), injector.records(), step);
     };
     if (trueInitialState.object == trueInitialState.destination) {
-        return finishRun(agent, injector, "Success", 0);
+        return finishRun(agent, injector, scorer, "Success", 0);
     }
     Observation current = nextObservation(trueInitialState, 1);
     trueHistory.push_back(current);
     int worldSteps = 0;
     while (true) {
         const Decision decision = agent.decide(current);
+        scorer.afterDecide(viewOf(agent.state), decision);
         if (!decision.isAction) {
             if (agent.safeStopCount() >= settings.safeStopLimit) {
-                return finishRun(agent, injector,
+                return finishRun(agent, injector, scorer,
                                  "Stopped -- unresolved", worldSteps);
             }
             current = nextObservation(current.state,
@@ -111,11 +124,13 @@ FaultRunResult runWithFaults(const WorldState& trueInitialState,
         trueHistory.push_back(next);
         if (environment.state().object == environment.state().destination) {
             agent.finalCheck(next);
-            return finishRun(agent, injector, "Success", worldSteps);
+            scorer.endFinalCheck(viewOf(agent.state));
+            return finishRun(agent, injector, scorer, "Success", worldSteps);
         }
         if (worldSteps >= settings.maxWorldSteps) {
             agent.finalCheck(next);
-            return finishRun(agent, injector, "Step limit", worldSteps);
+            scorer.endFinalCheck(viewOf(agent.state));
+            return finishRun(agent, injector, scorer, "Step limit", worldSteps);
         }
         current = next;
     }
@@ -128,27 +143,31 @@ FaultRunResult runWithFaults(const WorldState& trueInitialState,
     Environment environment(trueInitialState);
     std::vector<Observation> trueHistory;
     FaultInjector injector(events, &trueHistory);
-    agent.state.activationHook = [&injector, &agent](int step) {
+    Scorer scorer(events, trueInitialState, &trueHistory);
+    agent.state.activationHook = [&scorer, &injector, &agent](int step) {
+        scorer.endPhaseA(viewOf(agent.state), step);
         injector.atActivationPoint(partsOf(agent.state), step);
+        scorer.afterActivation(viewOf(agent.state), injector.records(), step);
     };
     if (trueInitialState.object == trueInitialState.destination) {
-        return finishRun(agent, injector, "Success", 0);
+        return finishRun(agent, injector, scorer, "Success", 0);
     }
     Observation current = nextObservation(trueInitialState, 1);
     trueHistory.push_back(current);
     int worldSteps = 0;
     while (true) {
         const Decision decision = agent.decide(current);
+        scorer.afterDecide(viewOf(agent.state), decision);
         const ActionResult stepped = environment.step(decision.action);
         ++worldSteps;
         Observation next{agent.state.decisionStep + 1, environment.state(),
                          decision.action, stepped.outcome};
         trueHistory.push_back(next);
         if (environment.state().object == environment.state().destination) {
-            return finishRun(agent, injector, "Success", worldSteps);
+            return finishRun(agent, injector, scorer, "Success", worldSteps);
         }
         if (worldSteps >= settings.maxWorldSteps) {
-            return finishRun(agent, injector, "Step limit", worldSteps);
+            return finishRun(agent, injector, scorer, "Step limit", worldSteps);
         }
         current = next;
     }

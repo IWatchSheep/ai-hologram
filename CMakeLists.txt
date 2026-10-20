@@ -102,6 +102,10 @@ add_library(ai_hologram_core STATIC
     src/experiment/fault_apply.cpp
     src/experiment/fault_run.h
     src/experiment/fault_run.cpp
+    src/experiment/scorer.h
+    src/experiment/scorer.cpp
+    src/experiment/scorer_life.cpp
+    src/experiment/scorer_commit.cpp
 )
 
 # Tell this target and its users to search src/ when resolving project headers.
@@ -162,6 +166,9 @@ add_executable(ai_hologram_tests
     tests/test_fault_run.cpp
     tests/test_fault_run_demo.cpp
     tests/test_fault_run_empty.cpp
+    tests/test_scorer.cpp
+    tests/test_scorer_life.cpp
+    tests/test_scorer_demo.cpp
 )
 
 # Linking lets the test program call functions from the shared core library.
