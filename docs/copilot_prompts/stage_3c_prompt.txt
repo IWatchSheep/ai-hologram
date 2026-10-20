@@ -1,0 +1,85 @@
+You are the project's coding assistant, in place of GitHub Copilot. Every rule in .github/copilot-instructions.md that is addressed to Copilot applies to you, including rules 2a-2g. Read that file, the brief docs/AI_Hologram_Project_Brief_v1.1.txt, the protocol docs/EXPERIMENT_1_PROTOCOL.md (Phase B, especially 10.7 and 11.2), and the plan docs/stages/STAGE_03.md (v1.2) before changing anything. Never run git commit, git push, or any command that changes Git history; leave all Git operations to the owner. Sub-stages 3a and 3b are complete.
+
+Implement SUB-STAGE 3c ONLY (plan Section 7, Step 4): the step predictor and the planner, exactly as in plan Sections 3.4 and 3.5.
+
+1. src/agent/step_predictor.h / .cpp - class StepPredictor (plan 3.4, 4.2).
+   Construction:
+   - It is constructed with a WorldModel and a per-step budget B.
+   Public members:
+   - void startStep(): a new BudgetCounter with limit B (unused budget is lost), and the cache is cleared.
+   - std::optional<Prediction> predict(const WorldState& state, Action action): looks in the cache first; a hit is free. A miss calls WorldModel::predict through the step's BudgetCounter (exactly one evaluation) and stores the result.
+   - The cache key is (agent position, object position, action). The predictor remembers the walls and destination its cached entries belong to; a predict() call with different walls or destination clears the cache before looking.
+   - bool isCached(const WorldState& state, Action action) const.
+   - std::optional<Prediction> predictVariant(const WorldState& state, Action action, const ActionModel& model): never reads or fills the cache; it always costs exactly one evaluation from the same BudgetCounter, using a WorldModel built from the given model.
+   - void clearCache(): for when the model or the trap overrides change.
+   - int remaining() const; int usedThisStep() const; int usedTotal() const.
+   Rules:
+   - When the budget is exhausted, every prediction returns std::nullopt and changes nothing.
+   - Never create a successor state in any other way.
+
+2. src/agent/planner.h / .cpp - the A* of plan 3.5, exactly.
+   Types:
+   - struct PlanStep { Action action; WorldState expected; };
+   - enum class SearchKind { Found, OutOfBudget, Exhausted };
+   - struct DiscoveredState { WorldState state; int bestG; int h; int parentIndex (-1 for the root); Action action; int discoveryNumber; };
+   - struct SearchResult { SearchKind kind; std::vector<PlanStep> plan; std::vector<DiscoveredState> discovered; int improvedPaths = 0; int reopenedStates = 0; }.
+     - improvedPaths counts how many times an already-discovered state's bestG was replaced by a shorter path.
+     - reopenedStates counts how many of those replacements reopened a closed state.
+   Functions:
+   - SearchResult search(const WorldState& root, const DeadSquareMap& map, const std::function<bool(const WorldState&)>& goalTest, const std::function<int(const WorldState&)>& heuristic, StepPredictor& predictor, int reserve);
+   - std::vector<PlanStep> fallback(const SearchResult& result): the discovered NON-ROOT state with the smallest (h, bestG, discoveryNumber) whose h < kInfiniteHeuristic. An empty vector means no action.
+   Algorithm (plan 3.5):
+   - The queue entries are (f = g + h, h, entry number, state index), smallest first; entry numbers increase by one each time an entry is added.
+   - Outdated entries are skipped: g is not the state's bestG, or the state is already closed.
+   - The goal is tested when an entry is TAKEN from the queue (the root is taken first, so an already-solved root gives Found with an empty plan and 0 evaluations).
+   - Expansion order is North, East, South, West.
+   - Before each prediction that is not cached: if predictor.remaining() <= reserve, return OutOfBudget.
+   - Skip a result that is Blocked or InvalidState, or whose object is on a dead square (map), or whose g' >= the known bestG.
+   - Otherwise discover the state, or improve it (reopening it if it was closed), and add a new entry.
+   - If the queue empties, return Exhausted.
+   - Use std::priority_queue with a clear comparator, or another standard container, and explain the ordering in beginner comments.
+
+3. Tests. tests/test_step_predictor.cpp: SP1-SP6 (plan 6.4). tests/test_planner.cpp, plus tests/test_planner_cases.cpp if needed: PL1-PL10 (plan 6.5), and the search part of DS3. SP7 (several pending V2 corrections) needs the decision step, so it is NOT part of 3c.
+
+Exact expected values. All are from the reference implementation of the plan. Use the main heuristic of plan 3.3 and the main goal (object on destination) unless stated otherwise.
+
+Layouts (rows y = 0..9):
+  D (Stage 1 demo):    ##########  #........#  #........#  #..A.O..D#  #........#  #........#  #...##...#  #........#  #........#  ##########
+  D2 (D + wall (4,3)): ##########  #........#  #........#  #..A#O..D#  #........#  #........#  #...##...#  #........#  #........#  ##########
+  L2 (DS3 sealed):     ##########  #....#...#  #.O..#.A.#  #....#...#  #D...#...#  ######...#  #........#  #........#  #........#  ##########
+  LP (PL2):            ##########  #....D##.#  #.O......#  #....A#..#  #.#......#  #.....##.#  #........#  #........#  #........#  ##########
+  LG (PL10):           ##########  #........#  #........#  #..A....*#  #........#  #........#  #...##...#  #........#  #........#  ##########
+
+- PL1: D, B = 200, reserve 1 -> Found, plan East, East, East, East, usedThisStep == 16.
+- PL2:
+  - LP, with a large budget (e.g. 1000000) and reserve 1 -> Found, plan West, West, West, North, West, North, East, East, East (9 actions); usedThisStep == 60; improvedPaths == 1; reopenedStates == 0.
+  - Also check that a planner accepting the goal when generated would not be needed: just check the 9-action plan.
+  - Also, in a small layout of your own with a known shortest solution, check the plan length.
+- PL3: in every search above, no discovered state has its object on a dead square.
+- PL4/PL5:
+  - D2, B = 10, reserve 1 -> OutOfBudget, usedThisStep == 9, remaining() == 1; the fallback plan is North, East.
+  - D2, B = 10, reserve 3 -> OutOfBudget, usedThisStep == 7, remaining() == 3; the fallback is North, East.
+  - With B = 1 and reserve 1, no node beyond the root is discovered, and the fallback is empty (no action).
+- PL6 and DS3 (search part): L2, large budget, reserve 1 -> Exhausted; usedThisStep == 156; 39 states discovered (including the root). (L2's object cell is not dead, so this is a full-state dead end on a non-dead square.)
+- PL7, active-test goal:
+  - D2 with the agent moved to (7, 1) (valid).
+  - Goal: the agent is on one of the cells (4, 4), (3, 3), (4, 2).
+  - Heuristic: the smallest manhattan distance from the agent to those cells, or kInfiniteHeuristic if the object is on a dead square.
+  - Large budget -> Found, a 4-action plan South, West, West, West ending with the agent at (4, 2); usedThisStep == 16.
+- PL8: running PL1 and PL2 twice gives identical plans and identical evaluation counts.
+- PL9: in PL1 and PL2, using a WorldModel with an instrumented (call-counting) ActionModel, the number of model calls equals usedThisStep.
+- PL10: LG, B = 200, reserve 1 -> Found, empty plan, usedThisStep == 0, even though heuristic(root) == 4.
+- SP1-SP6: as in plan 6.4. Use D: two identical predictions in one step cost 1 in total; a new step restores B; changed walls clear the cache; predictVariant always costs 1 and never touches the cache; exhaustion returns std::nullopt; instrumented model calls == charged evaluations.
+
+Every world used must be valid (isValidWorld), and each test checks this with check(). Register the new files in CMakeLists.txt, tests/test_suites.h and tests/test_main.cpp.
+
+From the start:
+- every new file has the three-part header (Purpose / "Introduced in Stage 3" / Architecture) and beginner comments: the open list's ordering and container, why every successor state must come from the predictor, the cache and why its key needs the walls, what a variant prediction is, and what the reserve is for (plan 9.1);
+- functions under about 40 lines; files under about 200 lines (split into e.g. planner.cpp and planner_fallback.cpp, or test files, if needed, and say so);
+- no exceptions, no assertions, no inheritance, no random numbers.
+
+Do not change any Stage 1, Stage 2, 3a or 3b code or test. Leave currentStage() returning 2. Do not create scratch, debug or temporary files, and build only in CLion's cmake-build-debug. Do not rename, move, or delete any file. Do not edit anything in docs/ or .cursor/. Do NOT do the deliberate failure check; the owner will.
+
+If an expected value above seems wrong, or anything disagrees with the plan or protocol, stop and report it instead of changing the expectation.
+
+When finished, rebuild and run the tests (rule 2g), and report the exact result line. Append a handoff note (rule 2f) saying honestly what you built and ran. Do not commit.

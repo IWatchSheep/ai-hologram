@@ -17,6 +17,8 @@ int main() {
     ai_hologram::runCompareTests(counter);
     ai_hologram::runFootprintTests(counter);
     ai_hologram::runDeadSquareTests(counter);
+    ai_hologram::runStepPredictorTests(counter);
+    ai_hologram::runPlannerTests(counter);
 
     std::cout << counter.checks << " checks, " << counter.failures << " failures\n";
     return counter.failures == 0 ? 0 : 1;
