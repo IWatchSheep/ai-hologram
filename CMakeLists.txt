@@ -33,6 +33,10 @@ add_library(ai_hologram_core STATIC
     src/agent/observation.h
     src/agent/footprint.h
     src/agent/footprint.cpp
+    src/agent/dead_squares.h
+    src/agent/dead_squares.cpp
+    src/agent/heuristic.h
+    src/agent/heuristic.cpp
     src/world/position.h
     src/world/action.h
     src/world/action.cpp
@@ -89,6 +93,8 @@ add_executable(ai_hologram_tests
     tests/test_compare.cpp
     tests/test_footprint.cpp
     tests/test_footprint_cases.cpp
+    tests/test_dead_squares.cpp
+    tests/test_dead_squares_cases.cpp
 )
 
 # Linking lets the test program call functions from the shared core library.

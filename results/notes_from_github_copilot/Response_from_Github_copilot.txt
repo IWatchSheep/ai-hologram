@@ -158,3 +158,22 @@ Follow-up 1 (this work) — test rewrite only:
 Build and run results: rebuilt with CLion's CMake/MinGW with no compiler warnings. With CLion's bundled MinGW directory on `PATH` (rule 2g), the test executable reported `158 checks, 0 failures`; CTest passed `correctness_tests` (1/1). The `ai_hologram` program was not run, as this follow-up changes tests only. Use **Build → Build Project** in CLion before running CTest.
 
 No expected value in the follow-up prompt was found to be wrong, and no plan or protocol conflict was found. The deliberate failure check was not performed. Nothing was committed.
+
+=== 2026-10-19 — Sub-stage 3b ===
+
+Files created:
+- `src/agent/dead_squares.h` and `src/agent/dead_squares.cpp` implement plan 3.3: `DeadSquareMap` (dead flag and pushDistance per cell, -1 = not reached), `FreeComputationCounts` (`analysisRuns`, `cellOperations`, `localChecks`, `heuristicCalls`), `computeDeadSquares` (backward breadth-first search over object cells only from the destination, directions in North, East, South, West order; each run adds 1 to `analysisRuns` and 1 to `cellOperations` for each (cell, direction) examined; then "not dead" overrides are applied, then "dead" corrections, changing only dead flags; walls and the destination are never dead), `localCheckSaysNotDead` (destination, or a direction with both neighbours believed free and the far neighbour not dead; it never reads the stored status of the checked cell; +1 `localChecks`), and `DeadSquareCache`, a small helper that keeps the last map and reruns the analysis only when the believed walls, the destination, or either override list has changed (a change of agent or object position alone does not rerun it).
+- `src/agent/heuristic.h` and `src/agent/heuristic.cpp` implement `kInfiniteHeuristic = 1000000000` and `heuristic` exactly as in plan 3.3 (infinite on a dead square; otherwise P + max(0, manhattan(agent, object) - 1), with P = pushDistance when >= 0, else manhattan(object, destination); +1 `heuristicCalls`). No search and no loop over actions.
+- `tests/test_dead_squares.cpp` covers DS1, DS2 (every cell of demo layout D checked against the prompt's full grid; exactly 22 dead cells), DS3 first part (layout L2 object cell (2, 2) not dead, pushDistance 3), DS4 and DS5.
+- `tests/test_dead_squares_cases.cpp` covers DS6 (cache reruns), DS7 (budget untouched and an instrumented counting ActionModel never called; the new functions take no WorldModel or BudgetCounter at all) and DS8 (heuristic values 4, 3, kInfiniteHeuristic, and 16 by the Manhattan fallback, with `heuristicCalls` counted). The tests were split into these two files, as the prompt allows, so each stays under about 200 lines (183 and 131 lines). Every state used is checked valid with `check()` and `isValidWorld`; wrong beliefs and overrides are written by hand.
+
+Files changed:
+- `CMakeLists.txt` registers the four new source files and the two new test files.
+- `tests/test_suites.h` declares `runDeadSquareTests`; `tests/test_main.cpp` runs it.
+- This note is appended; earlier notes were left intact.
+
+No Stage 1, Stage 2 or sub-stage 3a code or test was changed, and `currentStage()` still returns 2. No scratch, debug or temporary files were created. The new comments explain the difference between a dead square and a full-state dead end (plan 3.3, 9.1) and why these computations are free but bounded (protocol 10.7: object cells only, at most 100 cells x 4 directions, no successor states, never a model call).
+
+Build and run results: rebuilt into CLion's `cmake-build-debug` with CLion's CMake/MinGW with no compiler warnings. With CLion's bundled MinGW directory on `PATH` (rule 2g), the test executable reported `198 checks, 0 failures`; CTest passed `correctness_tests` (1/1). The `ai_hologram` program was run and still prints its unchanged Stage 2 header and demonstrations. Use **Build → Build Project** in CLion before running CTest.
+
+No expected value in the prompt was found to be wrong, and no plan or protocol conflict was found. DS3's search part (Exhausted) is deliberately not included; it belongs to sub-stage 3c. The deliberate failure check was not performed (the plan requires it for 3a, 3c and 3d, not 3b). Nothing was committed.

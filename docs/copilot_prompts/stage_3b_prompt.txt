@@ -1,0 +1,106 @@
+You are the project's coding assistant, in place of GitHub Copilot. Every rule in .github/copilot-instructions.md that is addressed to Copilot applies to you, including rules 2a-2g. Read that file, the brief docs/AI_Hologram_Project_Brief_v1.1.txt, the protocol docs/EXPERIMENT_1_PROTOCOL.md (Phase B, especially 10.7 and 11.2), and the plan docs/stages/STAGE_03.md (v1.2) before changing anything. Never run git commit, git push, or any command that changes Git history; leave all Git operations to the owner. Sub-stage 3a is committed (dc3add8).
+
+Implement SUB-STAGE 3b ONLY (plan Section 7, Step 3): dead squares and heuristic, exactly as in plan Section 3.3.
+
+Create:
+
+1. src/agent/dead_squares.h / .cpp:
+   - struct DeadSquareMap: for every cell, bool dead and int pushDistance (-1 = not reachable by relaxed pushes).
+   - struct FreeComputationCounts { int analysisRuns = 0; int cellOperations = 0; int localChecks = 0; int heuristicCalls = 0; } (the free-computation counters of plan 3.3 and protocol 10.7).
+   - computeDeadSquares(beliefWalls state, notDeadOverrides, deadCorrections, counts):
+     - the backward breadth-first search over OBJECT CELLS ONLY, exactly as in plan 3.3, directions in the order North, East, South, West;
+     - it never builds agent-object states and never calls any model;
+     - each run adds 1 to analysisRuns, and adds 1 to cellOperations for each (cell, direction) examined;
+     - then it applies the overrides, in this order:
+       1. "not dead" overrides (test-only in Stage 3);
+       2. "dead" corrections.
+       Overrides change only the dead flag of the listed cells.
+     - Walls and the destination are never dead.
+   - localCheckSaysNotDead(belief, map, p, counts):
+     - true iff p is the destination, or some direction d has p-d and p+d believed free and p+d not dead;
+     - it reads walls and neighbours only, never the stored status of p;
+     - +1 localChecks.
+   - A small helper that keeps the last map and reruns computeDeadSquares ONLY when the believed walls, the destination, or either override list has changed (plan 3.3, "When the analysis runs"). Choose a clear name, e.g. DeadSquareCache, and explain it in comments.
+
+2. src/agent/heuristic.h / .cpp:
+   - constexpr int kInfiniteHeuristic = 1000000000;
+   - heuristic(state, map, counts), exactly as in plan 3.3:
+     - kInfiniteHeuristic if the object's cell is dead;
+     - otherwise P + max(0, manhattan(agent, object) - 1), where P = pushDistance[object] if it is >= 0, else manhattan(object, destination);
+     - +1 heuristicCalls.
+   - No search and no loops over actions.
+
+3. tests/test_dead_squares.cpp, covering DS1, DS2, DS4, DS5, DS6, DS7 and DS8 (plan 6.3). DS3 is done in two parts: the first now, the search part in 3c.
+
+Exact expected values. Use the Stage 1 demo layout D, parsed with parseWorld: agent (3, 3), object (5, 3), destination (8, 3), interior walls (4, 6) and (5, 6).
+
+DS2: the full pushDistance/dead grid of D with no overrides ('#' = wall, 'x' = dead, numbers = pushDistance; rows y = 0..9, columns x = 0..9):
+     # # # # # # # # # #
+     # x x x x x x x x #
+     # x 7 6 5 4 3 2 1 #
+     # x 6 5 4 3 2 1 0 #
+     # x 7 6 5 4 3 2 1 #
+     # x 8 7 6 5 4 3 2 #
+     # x 9 8 # # 5 4 3 #
+     # x10 9 8 7 6 5 4 #
+     # x x x x x x x x #
+     # # # # # # # # # #
+   Check every free cell against this grid. There are exactly 22 dead cells. Walls are not dead, and every dead cell has pushDistance -1.
+
+DS1:
+- (1, 1) is dead (a corner that is not the destination);
+- (8, 3), the destination, is not dead and has pushDistance 0;
+- wall cells are never dead.
+
+DS3, first part:
+- Layout L2 below is valid. Its object cell (2, 2) is NOT dead, and has pushDistance 3, even though the agent is sealed off from it. The search part (Exhausted) is added in 3c.
+     ##########
+     #....#...#
+     #.O..#.A.#
+     #....#...#
+     #D...#...#
+     ######...#
+     #........#
+     #........#
+     #........#
+     ##########
+
+DS4:
+- With a "not dead" override on (1, 1): localCheckSaysNotDead is false at (1, 1), true at (5, 3), and true at (8, 3).
+- localChecks counts each call.
+
+DS5:
+- The "not dead" override on (1, 1) changes exactly one cell's status compared with no overrides.
+- A "dead" correction listed for the same cell wins, because it is applied after the override.
+
+DS6:
+- Using the cache helper with unchanged inputs does not increase analysisRuns.
+- Changing one believed wall, or adding an override, increases it by exactly 1.
+
+DS7:
+- Computing the map, the local check and the heuristic leaves a BudgetCounter untouched.
+- An instrumented ActionModel (one that counts its calls) is never called. These functions must not take a WorldModel or a BudgetCounter at all.
+
+DS8, heuristic on D (agent, object) -> value:
+- (3, 3), (5, 3) -> 4;
+- (4, 3), (5, 3) -> 3;
+- object on dead square (1, 1), agent (3, 3) -> kInfiniteHeuristic;
+- with a "not dead" override on (1, 1), agent (5, 5), object (1, 1) -> 16 (manhattan fallback: 9 + 7);
+- heuristicCalls counts each call.
+
+Every state used must be valid (isValidWorld), and each test checks this with check(). Write wrong beliefs and overrides by hand.
+
+Also register the new files in CMakeLists.txt, tests/test_suites.h and tests/test_main.cpp.
+
+From the start:
+- every new file has the three-part header (Purpose / "Introduced in Stage 3" / Architecture) and beginner comments, including the difference between a dead square and a full-state dead end (plan 3.3, 9.1), and why these computations are free but bounded (protocol 10.7);
+- functions under about 40 lines; files under about 200 lines (split tests into tests/test_dead_squares.cpp and tests/test_dead_squares_cases.cpp if needed, and say so);
+- no exceptions, no assertions, no inheritance, no random numbers.
+
+Do not change any Stage 1, Stage 2 or sub-stage 3a code or test. Leave currentStage() returning 2.
+
+Do not create scratch, debug or temporary files, and do not build into any folder other than CLion's cmake-build-debug. Do not rename, move, or delete any file. Do not edit anything in docs/ or .cursor/.
+
+If an expected value above seems wrong, or anything disagrees with the plan or protocol, stop and report it instead of changing the expectation.
+
+When finished, rebuild and run the tests (rule 2g), and report the exact result line. Append a handoff note (rule 2f) saying honestly what you built and ran. Do not commit.
