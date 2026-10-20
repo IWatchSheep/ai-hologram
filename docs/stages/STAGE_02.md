@@ -436,16 +436,39 @@ Unchanged. Stage 2 runs no experiments.
 ## 12. What actually happened (filled in by the owner at the end)
 
 ```
-Date completed:
-Commit tagged stage-2:
-Total number of checks in the final test run (N):
+Date completed: 2026-10-19
+Commit tagged stage-2: the commit titled "Stage 2: record stage completion" (run: git show stage-2)
+Total number of checks in the final test run (N): 80
 
-Did everything go as planned?  yes / no
+Owner verification gate (Step 6): passed on 2026-10-19
+- Fresh-build check: CMake cache reset, full rebuild, no compiler warnings.
+- ai_hologram output matches Section 5.5 exactly (all 56 lines, compared character by character).
+- ai_hologram_tests: 80 checks, 0 failures; every test in Section 6 is covered.
+- CTest: correctness_tests passed (1/1).
+- Deliberate failure check on the comparison code (sub-stage 2b): changing the wall test in compareStates from "predictedBlocked != observedBlocked" to "predictedBlocked && !observedBlocked" (so walls missing from a prediction were ignored) caused exactly CM5 to fail (80 checks, 1 failure); the change was undone, the project rebuilt, and everything passed; the change was not committed.
+- ChatGPT independently reviewed the source code and tests from the project ZIP (built on Linux with no warnings; CTest 1/1; 80 checks, 0 failures; output matched all 56 lines of 5.5), accepted plan v1.2/v1.3, the D-014 to D-018 renumbering, the strengthened CM6 test, and the recorded differences, and recommended completion. The owner approved completion.
+
+Sub-stage commits: c93e179 (approved plan), 5d405c9 (rule 2g, plan v1.2), 90f3bbd (prompts folder, plan v1.3), 38cf17d (2a), af1981f (2b), a26d48a (2c).
+
+Did everything go as planned?  yes, with the differences below
 Differences from the plan, and why:
+- Plan v1.2 and v1.3 (owner-approved documentation changes before sub-stage 2a) added rule 2g (D-012) and the docs/copilot_prompts/ folder (D-013); Stage 2's planned decisions were renumbered D-014 to D-018. No change to architecture, behaviour, tests, or expected output. ChatGPT was informed at the completion review.
+- Test CM6 was first written with wall differences at (4, 4) and (5, 5). Because these lie on a diagonal, the test could not detect walls reported column by column instead of row by row. Follow-up 1 changed it to (5, 4) and (4, 5); Claude confirmed on a copy that column-first order now fails CM6.
+- The 2b commit message differs in wording from plan Step 3 ("Stage 2b: state and prediction comparison with tests CM1-CM10" instead of "Stage 2b: add state comparison and difference descriptions"); its content is as planned.
+- prediction_demo.cpp keeps its own copy of the demo layout instead of sharing the one in scripted_demo.cpp, so no Stage 1 code had to change.
+- The demos' invalid-layout and no-prediction paths print a message instead of throwing; they are not exercised, because the layout is fixed and valid and each budget allows 10 evaluations for 5 actions.
 
 Problems encountered and how they were solved:
+- Running the programs in a new terminal tab without the PATH line printed nothing (missing MinGW DLLs, the rule 2g issue); running the PATH line first fixed it. An environment issue, not a code problem.
+- Copying long console output into a message lost the program's output; for review, the output was redirected to a file instead (deleted afterwards, not committed).
+- None of the Stage 1 code-quality problems recurred: Copilot met the function-length, comment, no-exception, and valid-fixture requirements from the start.
 
 Anything learned that should change future stage plans:
+- Stating the requirements up front in each Copilot prompt (function length, beginner comments, no exceptions, valid fixtures) worked; no rework was needed for them.
+- A test of ordering must use cases that a wrong order would get wrong; reviews should check such tests against plausible wrong implementations.
+- Saving each Copilot prompt in docs/copilot_prompts/ before using it worked well and should continue.
+- To check exact program output, redirect it to a file instead of copying it from the terminal.
+- Stage 3 cannot be planned until protocol Phase B resolves the observation in 5.6.
 ```
 
 ---
