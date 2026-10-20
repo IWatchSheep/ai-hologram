@@ -105,6 +105,36 @@ bool trapHistoryPasses(Position p, Position destination,
     return true;
 }
 
+// Verifies all belief candidates together (plan 3.7 A.3): the free
+// history checks first, then one variant re-prediction from the
+// corrected belief. That optional re-prediction must keep the
+// reserve, so it returns Deferred when it cannot be afforded.
+InvestigationOutcome verifyCandidates(
+    const WorldState& beliefBefore, Action action,
+    const std::vector<BeliefCandidate>& candidates,
+    const std::vector<Observation>& history, const Observation& before,
+    const Observation& after, StepPredictor& predictor,
+    const ActionModel& currentModel, int reserve) {
+    if (!historyChecksPass(candidates, history, before) ||
+        !isValidWorld(correctedBelief(beliefBefore, candidates))) {
+        return InvestigationOutcome::NoCandidatePassed;
+    }
+    if (predictor.remaining() <= reserve) {
+        return InvestigationOutcome::Deferred;
+    }
+    const WorldState corrected = correctedBelief(beliefBefore, candidates);
+    const auto predicted = predictor.predictVariant(corrected, action, currentModel);
+    if (!predicted.has_value()) return InvestigationOutcome::Deferred;
+    const MoveOutcome observedOutcome = after.lastOutcome.value_or(MoveOutcome::Blocked);
+    const std::vector<Position> cells = computeFootprint(corrected, action, after.state, observedOutcome);
+    const FootprintComparison comparison = compareFootprint(
+        predicted->state, predicted->outcome, after.state, observedOutcome, cells);
+    if (!comparison.outcomesDiffer && comparison.cells.empty()) {
+        return InvestigationOutcome::BeliefCandidatesConsistent;
+    }
+    return InvestigationOutcome::NoCandidatePassed;
+}
+
 }  // namespace
 
 InvestigationResult investigateMismatch(
@@ -127,38 +157,11 @@ InvestigationResult investigateMismatch(
         return result;
     }
     result.suspected = SourceLabel::S2;  // belief candidates (A.2)
-    // A.3: verify all candidates TOGETHER. History checks first
-    // (free lookups); then one re-prediction from the corrected
-    // belief. That re-prediction is optional, so it must keep the
-    // reserve; if it cannot, the investigation is Deferred.
-    if (!historyChecksPass(result.candidates, history, before) ||
-        !isValidWorld(correctedBelief(beliefBefore, result.candidates))) {
-        result.outcome = InvestigationOutcome::NoCandidatePassed;
-        result.suspected = SourceLabel::S5;
-        return result;
-    }
-    if (predictor.remaining() <= reserve) {
-        result.outcome = InvestigationOutcome::Deferred;
-        return result;
-    }
-    const WorldState corrected = correctedBelief(beliefBefore, result.candidates);
-    const auto predicted =
-        predictor.predictVariant(corrected, action, currentModel);
-    if (!predicted.has_value()) {
-        result.outcome = InvestigationOutcome::Deferred;
-        return result;
-    }
-    const MoveOutcome observedOutcome =
-        after.lastOutcome.value_or(MoveOutcome::Blocked);
-    const std::vector<Position> cells =
-        computeFootprint(corrected, action, after.state, observedOutcome);
-    const FootprintComparison comparison = compareFootprint(
-        predicted->state, predicted->outcome, after.state, observedOutcome,
-        cells);
-    if (!comparison.outcomesDiffer && comparison.cells.empty()) {
-        result.outcome = InvestigationOutcome::BeliefCandidatesConsistent;
-    } else {
-        result.outcome = InvestigationOutcome::NoCandidatePassed;
+    // A.3: verify all candidates TOGETHER (see verifyCandidates).
+    result.outcome = verifyCandidates(
+        beliefBefore, action, result.candidates, history, before, after,
+        predictor, currentModel, reserve);
+    if (result.outcome == InvestigationOutcome::NoCandidatePassed) {
         result.suspected = SourceLabel::S5;
     }
     return result;

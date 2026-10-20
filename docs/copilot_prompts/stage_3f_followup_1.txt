@@ -1,0 +1,30 @@
+You are the project's coding assistant, in place of GitHub Copilot. Every rule in .github/copilot-instructions.md that is addressed to Copilot applies to you, including rules 2a-2g. Read that file and docs/stages/STAGE_03.md (v1.2, Sections 3.6-3.9, 4.2, 9.1 and 13) before changing anything. Never run git commit, git push, or any command that changes Git history; leave all Git operations to the owner.
+
+Sub-stage 3f follow-up 1 (function length; a refactor ONLY, with no change in behaviour).
+
+Stage 3 is complete and committed: 353 checks, 0 failures, and the ai_hologram output matches plan 5.5 exactly. The owner's verification gate (plan Section 10) requires functions under about 40 lines. These five source functions are clearly longer:
+- SingleAgent::chooseAndCommit in src/agent/single_agent_choose.cpp: 77 lines, and no comments.
+- SingleAgent::handleInvestigation in src/agent/single_agent_check.cpp: 56 lines.
+- SingleAgent::checkCommitted in src/agent/single_agent_check.cpp: 49 lines.
+- SingleAgent::tryActiveTest in src/agent/single_agent_choose.cpp: 44 lines.
+- investigateMismatch in src/agent/investigation.cpp: 53 lines.
+
+Split each into well-named helper functions so that every function, comments included, is at most about 40 lines. Add a beginner comment to each new helper saying what it does and which plan section it implements, and add short comments inside chooseAndCommit naming the steps of plan 3.6 (cautious mode, active test, keep the plan, main search, consequence check, fallback, committed prediction).
+
+Rules for this refactor:
+- Pure extraction. Do not change any behaviour, decision order, budget use, prediction order, cache use, log text or log order. Do not change any public name or meaning fixed in plan 4.2. New SingleAgent helpers may be added to single_agent.h in the same style as the existing helpers. New free helpers go in an unnamed namespace in the .cpp file.
+- Do not change any test, and do not change any other function.
+- Keep every touched file under about 200 lines. single_agent_choose.cpp (208) and single_agent_check.cpp (201) must end up under 200.
+  - If that needs a new file, the owner approves exactly one new source file name: src/agent/single_agent_search.cpp, for the main-search part of the choice (main search, consequence check, fallback). Give it the three-part header (Purpose / "Introduced in Stage 3" / Architecture) and register it in CMakeLists.txt.
+  - No other new file.
+- No exceptions, no assertions, no inheritance, no random numbers.
+- Do not create scratch, debug or temporary files, and build only in CLion's cmake-build-debug. Do not rename, move or delete files. Do not edit docs/ or .cursor/.
+
+The existing tests check C1's exact log lines and evaluation counts in many situations (C1-1, C1-2, C1-5, C1-9, C1-11, C1-12, VF6, SP7, C1-6c, the C0 tests, AD1). They are the proof that nothing changed. If ANY test fails after your change, the refactor changed behaviour: undo that part and try again. Never change a test or an expectation.
+
+When finished:
+- rebuild (rule 2g) and report the exact test result line. It must still be 353 checks, 0 failures;
+- run the ai_hologram program and confirm its output is still exactly plan 5.5 (102 lines);
+- list each of the five functions with its new line count, and every new helper with its line count;
+- report the final line counts of single_agent_choose.cpp, single_agent_check.cpp, investigation.cpp and (if created) single_agent_search.cpp;
+- append a handoff note (rule 2f), and do not commit.

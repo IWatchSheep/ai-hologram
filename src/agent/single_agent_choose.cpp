@@ -58,39 +58,58 @@ bool SingleAgent::tryActiveTest(const DeadSquareMap& map, int reserve) {
                 state.settings.activeTestDelay) {
             continue;
         }
-        const auto targets = activeTestTargets(state.belief, record.element.cell);
-        if (targets.empty()) continue;
-        const auto goal = [&targets](const WorldState& state) {
-            for (const auto& target : targets) {
-                if (state.agent == target.first) return true;
-            }
-            return false;
-        };
-        const auto estimate = [&targets, &map](const WorldState& state) {
-            if (objectDead(state, map)) return kInfiniteHeuristic;
-            int best = kInfiniteHeuristic;
-            for (const auto& target : targets) {
-                best = std::min(best, manhattan(state.agent, target.first));
-            }
-            return best;
-        };
-        const SearchResult result = search(state.belief, map, goal, estimate, state.predictor, reserve);
-        if (result.kind != SearchKind::Found) continue;
-        const WorldState end = result.plan.empty() ? state.belief : result.plan.back().expected;
+        if (tryTestForCorrection(record, map, reserve)) return true;
+    }
+    return false;
+}
+
+// Searches for a walk to one test cell of one wall correction
+// (plan 3.8, active test): the goal is reaching a target cell and
+// the estimate is the smallest manhattan distance to a target.
+bool SingleAgent::tryTestForCorrection(const CorrectionRecord& record,
+                                       const DeadSquareMap& map, int reserve) {
+    const auto targets = activeTestTargets(state.belief, record.element.cell);
+    if (targets.empty()) return false;
+    const auto goal = [&targets](const WorldState& state) {
         for (const auto& target : targets) {
-            if (target.first != end.agent) continue;
-            if (!state.predictor.isCached(end, target.second) &&
-                state.predictor.remaining() <= reserve) {
-                continue;
-            }
-            const auto test = state.predictor.predict(end, target.second);
-            if (!test.has_value()) continue;
-            state.plan = result.plan;
-            state.plan.push_back(PlanStep{target.second, test->state});
-            state.planKind = PlanKind::Test;
-            addLog(planActiveTestLine(record.id, static_cast<int>(state.plan.size())));
-            return true;
+            if (state.agent == target.first) return true;
         }
+        return false;
+    };
+    const auto estimate = [&targets, &map](const WorldState& state) {
+        if (objectDead(state, map)) return kInfiniteHeuristic;
+        int best = kInfiniteHeuristic;
+        for (const auto& target : targets) {
+            best = std::min(best, manhattan(state.agent, target.first));
+        }
+        return best;
+    };
+    const SearchResult result = search(state.belief, map, goal, estimate, state.predictor, reserve);
+    if (result.kind != SearchKind::Found) return false;
+    return finishActiveTest(record, targets, result, reserve);
+}
+
+// Adds the test move into the corrected cell to a found walk and
+// makes it the plan (plan 3.8, active test). The test move's
+// prediction is made only if it keeps the reserve (or is cached).
+bool SingleAgent::finishActiveTest(
+    const CorrectionRecord& record,
+    const std::vector<std::pair<Position, Action>>& targets,
+    const SearchResult& result, int reserve) {
+    const WorldState end = result.plan.empty() ? state.belief : result.plan.back().expected;
+    for (const auto& target : targets) {
+        if (target.first != end.agent) continue;
+        if (!state.predictor.isCached(end, target.second) &&
+            state.predictor.remaining() <= reserve) {
+            continue;
+        }
+        const auto test = state.predictor.predict(end, target.second);
+        if (!test.has_value()) continue;
+        state.plan = result.plan;
+        state.plan.push_back(PlanStep{target.second, test->state});
+        state.planKind = PlanKind::Test;
+        addLog(planActiveTestLine(record.id, static_cast<int>(state.plan.size())));
+        return true;
     }
     return false;
 }
@@ -128,81 +147,48 @@ Decision SingleAgent::commitAction() {
 }
 
 Decision SingleAgent::chooseAndCommit() {
-    if (state.pendingV1.has_value()) {  // cautious mode (plan 3.9)
+    // Step 1: cautious mode while V1 work is unfinished (plan 3.9).
+    if (state.pendingV1.has_value()) {
         if (const auto cautious = chooseCautiousAction()) {
             addLog(planCautiousLine());
             state.plan = {*cautious};
             state.planKind = PlanKind::Goal;
-            return commitAction();
+            return commitAction();  // committed prediction (step 5)
         }
         return makeSafeStop("investigation unfinished, no cautious action");
     }
     const int reserve = currentReserve();
     const DeadSquareMap& map = currentMap();
+    // Step 2: active test of an old-enough wall correction (plan 3.8).
     if (state.planKind != PlanKind::Test && tryActiveTest(map, reserve)) {
-        return commitAction();
+        return commitAction();  // committed prediction (step 5)
     }
-    if (!state.plan.empty()) {  // keep the plan if it still fits (3.6)
-        const auto predicted = state.predictor.predict(state.belief, state.plan.front().action);
-        if (!predicted.has_value()) {
-            state.plan.clear();
-            state.planKind = PlanKind::None;
-            return makeSafeStop("no budget for a committed prediction");
-        }
-        if (predicted->state == state.plan.front().expected && !objectDead(predicted->state, map)) {
-            return commitAction();
-        }
-        state.plan.clear();
-        state.planKind = PlanKind::None;
-    }
-    const auto goal = [](const WorldState& state) { return state.object == state.destination; };
-    const auto estimate = [this, &map](const WorldState& candidate) {
-        return heuristic(candidate, map, state.freeCounts);
-    };
-    const SearchResult result = search(state.belief, map, goal, estimate, state.predictor, reserve);
-    if (result.kind == SearchKind::Found) {
-        if (result.plan.empty()) {
-            return makeSafeStop("belief shows goal reached");
-        }
-        state.plan = result.plan;
-        state.planKind = PlanKind::Goal;
-        addLog(planSearchLine(static_cast<int>(state.plan.size())));
-    } else {
-        if (result.kind == SearchKind::Exhausted) {
-            const Position p = state.belief.object;
-            const ConsequenceOutcome consequence = checkConsequence(state.belief, map, state.history, state.freeCounts);
-            if (consequence == ConsequenceOutcome::FullStateDeadEnd) {
-                addLog(consequenceSurpriseLine(p));
-                addLog(fullStateDeadEndLine());
-            } else if (consequence == ConsequenceOutcome::Mismatch) {
-                addLog(consequenceSurpriseLine(p));
-                addLog(consequenceMismatchLine(p));
-                CorrectionRecord record;
-                record.element.kind = ElementKind::Trap;
-                record.element.cell = p;
-                record.status = CorrectionStatus::Consistent;
-                record.stepConsistent = state.decisionStep;
-                CorrectionRecord& added = addCorrectionRecord(record);
-                applyCorrection(added);
-                addLog(correctionTrapLine(added.id, p));
-                attemptTrapV2(added.id, p);
-            }
-        }
-        const std::vector<PlanStep> best = fallback(result);
-        if (best.empty()) {
-            return makeSafeStop(result.kind == SearchKind::OutOfBudget ? "budget too small to plan" : "no safe action");
-        }
-        state.plan = best;
-        state.planKind = PlanKind::Fallback;
-        addLog(planFallbackLine(static_cast<int>(state.plan.size())));
-    }
+    // Step 3: keep the plan if its next step still fits (plan 3.6).
+    if (const auto kept = tryKeepCurrentPlan(map)) return *kept;
+    // Step 4: main search, consequence check and fallback, in
+    // single_agent_search.cpp; it commits its first action itself.
+    return runMainSearch(map, reserve);
+}
+
+// Keeps the current plan when its next action still predicts the
+// expected state and does not put the object on a dead square
+// (plan 3.6, "keep the plan"). Returns a decision when the plan is
+// kept or no committed prediction can be made; otherwise clears
+// the plan and returns nothing, so the caller searches afresh.
+std::optional<Decision> SingleAgent::tryKeepCurrentPlan(const DeadSquareMap& map) {
+    if (state.plan.empty()) return std::nullopt;
     const auto predicted = state.predictor.predict(state.belief, state.plan.front().action);
     if (!predicted.has_value()) {
         state.plan.clear();
         state.planKind = PlanKind::None;
         return makeSafeStop("no budget for a committed prediction");
     }
-    return commitAction();
+    if (predicted->state == state.plan.front().expected && !objectDead(predicted->state, map)) {
+        return commitAction();
+    }
+    state.plan.clear();
+    state.planKind = PlanKind::None;
+    return std::nullopt;
 }
 
 }  // namespace ai_hologram

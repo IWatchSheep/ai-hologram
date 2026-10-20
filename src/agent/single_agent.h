@@ -137,14 +137,35 @@ private:
     CorrectionRecord& addCorrectionRecord(CorrectionRecord record);
 
     void checkCommitted(const Observation& observation);
+    void settleTestedCorrections(const CommittedPrediction& committed,
+                                 bool matched);
+    void storeMismatchAndHandle(const InvestigationResult& result,
+                                const FootprintComparison& comparison,
+                                Action action,
+                                const WorldState& beliefBefore,
+                                const Observation& observation);
     void handleInvestigation(const InvestigationResult& result,
                              const WorldState& beliefBefore, Action action,
                              const Observation& after, bool logLines,
                              const std::vector<Observation>& historyUsed);
+    void logInvestigationLines(const InvestigationResult& result,
+                               const WorldState& beliefBefore, Action action);
+    void createBeliefCorrections(const InvestigationResult& result,
+                                 const WorldState& beliefBefore);
     std::optional<Decision> retryDeferred();
     void continuePendingWork();
     void attemptTrapV2(int correctionId, Position cell);
     bool tryActiveTest(const DeadSquareMap& map, int reserve);
+    bool tryTestForCorrection(const CorrectionRecord& record,
+                              const DeadSquareMap& map, int reserve);
+    bool finishActiveTest(
+        const CorrectionRecord& record,
+        const std::vector<std::pair<Position, Action>>& targets,
+        const SearchResult& result, int reserve);
+    std::optional<Decision> tryKeepCurrentPlan(const DeadSquareMap& map);
+    Decision runMainSearch(const DeadSquareMap& map, int reserve);
+    void handleExhaustedConsequence(const DeadSquareMap& map);
+    std::optional<Decision> chooseFallbackPlan(const SearchResult& result);
     Decision chooseAndCommit();
     Decision commitAction();
 };

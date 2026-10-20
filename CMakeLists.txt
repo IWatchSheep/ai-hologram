@@ -54,7 +54,9 @@ add_library(ai_hologram_core STATIC
     src/agent/single_agent.h
     src/agent/single_agent.cpp
     src/agent/single_agent_check.cpp
+    src/agent/single_agent_investigate.cpp
     src/agent/single_agent_choose.cpp
+    src/agent/single_agent_search.cpp
     src/agent/naive_agent.h
     src/agent/naive_agent.cpp
     src/agent/run_loop.h

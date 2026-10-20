@@ -1,0 +1,27 @@
+You are the project's coding assistant, in place of GitHub Copilot. Every rule in .github/copilot-instructions.md that is addressed to Copilot applies to you, including rules 2a-2g. Read that file before changing anything. Never run git commit, git push, or any command that changes Git history; leave all Git operations to the owner.
+
+Sub-stage 3f follow-up 2 (readability; a refactor ONLY, with no change in behaviour).
+
+Follow-up 1 worked: 353 checks, 0 failures, and the output still matches plan 5.5. However, to bring src/agent/single_agent_check.cpp under 200 lines, statements were joined onto shared lines, and some lines are now 124-160 characters wide. This makes the code harder to read for a beginner, which is the opposite of what the line limits are for. Undo that, and make room properly instead:
+
+1. The owner approves exactly one new source file: src/agent/single_agent_investigate.cpp.
+   - Move SingleAgent::handleInvestigation, SingleAgent::logInvestigationLines and SingleAgent::createBeliefCorrections into it, unchanged in behaviour.
+   - Give it the three-part header (Purpose / "Introduced in Stage 3" / Architecture), saying it holds the part of the check that acts on an investigation's result (plan 3.7).
+   - Register it in CMakeLists.txt.
+2. In single_agent_check.cpp and single_agent_investigate.cpp:
+   - one statement per line everywhere;
+   - no line longer than about 100 characters (wrap long calls as in the rest of the project);
+   - `if (...) { ...; return; }` and `} else { ...; }` written on separate lines, in the project's usual style.
+3. Every function must stay at most about 40 lines, and every file under 200 lines.
+
+Rules:
+- Pure moving and reformatting. Do not change any behaviour, statement order, log text or test.
+- Do not change any other file except CMakeLists.txt and the handoff note.
+- No exceptions, assertions, inheritance or random numbers.
+- Do not create scratch, debug or temporary files, and build only in CLion's cmake-build-debug. Do not rename, move or delete files (moving functions between files is fine). Do not edit docs/ or .cursor/.
+
+When finished:
+- rebuild (rule 2g) and report the exact test result line. It must still be 353 checks, 0 failures;
+- run ai_hologram and confirm its output is still exactly plan 5.5;
+- report the final line counts of single_agent_check.cpp and single_agent_investigate.cpp, and the length of their longest line;
+- append a handoff note (rule 2f), and do not commit.
