@@ -985,7 +985,7 @@ No change.
 No change. Stage 3 runs no experiments; the reference checks in 5.5 are design checks, not experiments.
 
 ### 9.5 `docs/copilot_prompts/`
-One prompt file per sub-stage (`../../../../Downloads/stage_3a_prompt.txt` … `stage_3f_prompt.txt`), plus any follow-ups, saved before use (D-013).
+One prompt file per sub-stage (`stage_3a_prompt.txt` … `stage_3f_prompt.txt`), plus any follow-ups, saved before use (D-013).
 
 ---
 
