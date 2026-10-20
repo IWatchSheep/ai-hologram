@@ -27,6 +27,8 @@ int main() {
     ai_hologram::runSeededRandomTests(counter);
     ai_hologram::runLayoutGeneratorTests(counter);
     ai_hologram::runLayoutGeneratorSetTests(counter);
+    ai_hologram::runFaultEventTests(counter);
+    ai_hologram::runFaultEventSetTests(counter);
 
     std::cout << counter.checks << " checks, " << counter.failures << " failures\n";
     return counter.failures == 0 ? 0 : 1;

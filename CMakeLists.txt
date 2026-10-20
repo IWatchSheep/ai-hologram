@@ -94,6 +94,9 @@ add_library(ai_hologram_core STATIC
     src/experiment/true_search.cpp
     src/experiment/layout_generator.h
     src/experiment/layout_generator.cpp
+    src/experiment/fault_event.h
+    src/experiment/fault_events.h
+    src/experiment/fault_events.cpp
 )
 
 # Tell this target and its users to search src/ when resolving project headers.
@@ -145,6 +148,8 @@ add_executable(ai_hologram_tests
     tests/test_seeded_random.cpp
     tests/test_layout_generator.cpp
     tests/test_layout_generator_sets.cpp
+    tests/test_fault_events.cpp
+    tests/test_fault_events_sets.cpp
 )
 
 # Linking lets the test program call functions from the shared core library.
