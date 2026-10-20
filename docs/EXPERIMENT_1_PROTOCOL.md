@@ -4,12 +4,12 @@
 |---|---|
 | **Project** | AI Hologram (`ai-hologram` repository) |
 | **Document** | `docs/EXPERIMENT_1_PROTOCOL.md` |
-| **Version** | **v0.6 — Phase A and Phase B approved** |
-| **Date** | October 19, 2026 |
-| **Status** | **PHASE A APPROVED. PHASE B APPROVED. COMPLETE PROTOCOL NOT FROZEN.** Phase A (Sections 1–9) was approved on **October 19, 2026**, and Phase B (Sections 10–12) on **October 19, 2026**, each by ChatGPT (independent review) and by the owner. Phase C (Sections 13–15) is still to be written, reviewed and approved. The approved Phase A definitions and thresholds **must not be changed** because of pilot performance or observed experimental results. The `protocol-1-approved` tag is reserved for the complete, frozen protocol. |
+| **Version** | **v0.9 — Phase A and Phase B approved; Phase C draft approved for validation** |
+| **Date** | October 20, 2026 |
+| **Status** | **PHASE A APPROVED. PHASE B APPROVED. COMPLETE PROTOCOL NOT FROZEN.** Phase A (Sections 1–9) was approved on **October 19, 2026**, and Phase B (Sections 10–12) on **October 19, 2026**, each by ChatGPT (independent review) and by the owner. Phase C (Sections 13–15), **draft v0.9**, was **approved for validation** on **October 20, 2026** by ChatGPT (independent review) and by the owner, together with **amendment A1** and **interpretation I1** (13.12). Phase C is **not yet approved for the freeze**: a reference implementation of Section 13 and feasibility pilots (9.2) must be completed and independently reviewed first. The approved Phase A definitions and thresholds **must not be changed** because of pilot performance or observed experimental results. The `protocol-1-approved` tag is reserved for the complete, frozen protocol. |
 | **Governing specification** | `AI_Hologram_Project_Brief_v1.1.txt`, especially Sections 3, 4, 7, 11 and 12 |
 | **Required by** | Brief Section 10, "Definition gate": this protocol must be approved and frozen **before Stage 4** begins |
-| **Project state when written** | Phase A: Stage 1 complete (tag `stage-1`, commit `72a11fe`). Phase B: Stage 2 complete (tag `stage-2`, commit `e112145`). No reasoning code exists. **No experiment has been run.** |
+| **Project state when written** | Phase A: Stage 1 complete (tag `stage-1`, commit `72a11fe`). Phase B: Stage 2 complete (tag `stage-2`, commit `e112145`). Phase C: Stage 3 complete (tag `stage-3`, commit `7587f38`); C1 and C0 exist and C1 is frozen; no two-reasoner code exists. **No experiment has been run.** |
 
 ---
 
@@ -838,23 +838,489 @@ C0 uses C1's planner, heuristic, trap analysis and budget. It **never reads an o
 9. **Safe stops.** A safe stop happens when no safe or cautious action exists. It counts as a decision step, and it consumes that step's budget.
 10. **C0.** C0 never reads observations after the first, and plans again only when its plan is used up.
 
-## Phase C sections (placeholders; to be written during Stage 3)
+## Phase C sections (DRAFT v0.9: APPROVED FOR VALIDATION on 2026-10-20; not frozen)
 
-### 13. Two-agent behaviour (C2–C4)
-Built on the shared definitions in Phase B, and meeting the requirements in 12.8.
+Phase C completes the Experiment 1 protocol. It defines how the two-reasoner conditions C2, C3 and C4 behave (Section 13), sets every remaining number (Section 14), and prepares the freeze record (Section 15).
 
-### 14. Numbers
-- Budget per step B and how it is split;
-- stop limit;
-- maximum world steps;
-- fault rate and common-mode share;
-- the common-exposure warning threshold (4.4);
-- N layouts × M seeds (confirmatory);
-- the separate pilot layouts and seeds;
-- the bootstrap seed.
+**Boundaries.**
+- **Phases A and B are unchanged.** In particular, the requirements of 12.8 are met as written.
+- **C1 is frozen** at the `stage-3` tag (Phase A Section 3).
+- **The owner's ideas.** Phase C draws on the owner's design inputs (`PHASE_C_design_inputs.md`), which come from the owner's spatial / temporal-spatial vision. Section 13.10 states which of them enter Experiment 1, and which must wait for a later experiment, with the reason for each.
 
-### 15. Freeze record
-Approval, `DECISIONS.md` entry, and the `protocol-1-approved` tag.
+---
+
+### 13. Two-reasoner behaviour (C2–C4)
+
+#### 13.1 What stays exactly as in Phase B — [PROPOSAL]
+Every reasoner in C2, C3 and C4 uses, **without change** (12.8.1):
+- observations and history (10.2);
+- belief maintenance (10.3);
+- belief elements (10.4);
+- the footprint (10.5);
+- records (10.6);
+- budget and free computations (10.7);
+- checks triggered by use (11.1);
+- investigation and source labels (11.4);
+- verification V1/V2 and statuses (11.5);
+- safe stops and cautious mode (11.6), applied at system level (13.4);
+- the fault lifecycle (12.3);
+- shadow evaluation (12.4);
+- the event definitions (12.5).
+
+Each reasoner has the **complete** set of C1 components: belief, history, records, step predictor, planner, trap analysis, heuristic, investigation and verification. So every fault type F1–F5 has a meaning for every reasoner, and no fault type is "not applicable" to a reasoner (4.2, 12.2).
+
+#### 13.2 Reasoners, budgets and messages (shared by C2–C4) — [PROPOSAL]
+**Reasoners.**
+- The two reasoners are called **R1** and **R2**. In C3 and C4, R1 is **Agent 1** (incremental, spatial) and R2 is **Agent 2** (temporal-spatial witness).
+- Each reasoner keeps its own belief, history copy, records and action model.
+- Neither reads or changes the other's internal data (Brief 4.1).
+
+**Budget** (Brief 11.5.3, 10.7).
+- R1 and R2 each have **B/2** model evaluations per decision step, through separate counters. Unused budget is lost, and is never transferred.
+- **Reserve (every reasoner, every two-reasoner condition).** Each reasoner protects a reserve of 1 + (the number of its own pending wall, object or model corrections in status CONSISTENT):
+  - **1** for its prediction of the step's **final action** (13.4a);
+  - **1 per pending correction,** for the V2 alternative predictions that a discriminating final action may need (11.5).
+- **Keeping the reserve.** Every optional evaluation (look-ahead, investigation, replay, test and cautious-action candidates, alternative proposals) may be made only if it leaves at least the reserve. If an evaluation would break into the reserve, that optional work stops for this step, as in C1 (11.7).
+- **The one exception, as in C1.** A reasoner's prediction of the **proposed action** (the proposer's own prediction, or the reviewer's immediate prediction) may use the reserve's unit for A\*, exactly as C1's committed prediction does. If the proposed action becomes A\*, that prediction is the prediction of A\* (13.4a).
+
+**Messages** (Brief 4.1).
+- **Types:** PROPOSAL, PREDICTION, OBJECTION, TEST_REQUEST, TEST_RESULT, RESOLUTION, BELIEF_UPDATE and SAFE_STOP, plus **BELIEF_REPORT**: the value of one named belief element, sent only during an investigation (12.8.2).
+- **Every message records:** sender, decision step, type, content, and the evidence it refers to (observation indexes, record ids). The message log is **append-only**: nothing in it is ever edited or removed (13.3, 13.4).
+- **No whole beliefs.** A message never carries a whole belief.
+  - Predictions are exchanged only as a predicted outcome plus the contents of the footprint cells.
+  - Belief values are exchanged only as BELIEF_REPORTs for elements in dispute.
+- **Cost.**
+  - **Message passing** is counted and reported, but not charged to B, as in Brief 11.5.3.
+  - **To prevent unbounded free activity,** a system sends at most **M_max** messages per decision step (Section 14). When the limit is reached, the current disagreement is treated as unresolved (13.4, step 9).
+  - **Every prediction** a message reports was made through the sender's budget counter.
+
+**Free computations.**
+- No new kind is added (10.7).
+- **Comparing two reasoners' predictions** uses the footprint comparison of 10.5.
+- **Reading a BELIEF_REPORT** is a comparison of records.
+- **Converting positions between reference frames** (13.3) is counted as part of the comparison it serves: one conversion per position per message, reported. *(Accepted in the v0.7 review.)*
+
+#### 13.3 The common relative zero (the owner's reference frames) — [PROPOSAL]
+The owner's design gives each reasoner its own **zero** on a number line, from which positions and times are measured as offsets toward "greater than zero", with a frame shared by both. In Experiment 1 this is made exact as follows.
+
+**Frames.**
+- **Shared frame:** grid coordinates (x, y) and the decision step t. Both reasoners receive identical observations, so they share this frame exactly.
+- **Local references:** each reasoner i has two.
+  - a **fixed reference** Z_i⁰ = (x, y, t) of the agent at decision step 1;
+  - a **moving reference** Z_iⁿ = (x, y, t) of the believed agent position at the current step.
+- **Relative position of an event** E = (x, y, t) for reference Z = (x_z, y_z, t_z): rel(E, Z) = (x − x_z, y − y_z, t − t_z).
+  - **Converting back** adds Z.
+  - **Offsets are signed.** Positive and negative values describe displacement only, never authority.
+
+**Use in messages.**
+- Every position or time in a message is written in the shared frame, **and** as an offset from the sender's named reference (fixed or moving).
+- The receiver converts the offset back with the sender's stated reference, and checks that it equals the shared-frame value. A difference is a **frame inconsistency**, logged as a possible bug (Phase A 8.4). It is never a claim about a belief.
+
+**Use in investigations (the time dimension).**
+- **Normalise first.** Two claims are compared only after normalising them to the shared frame and to the **same time t**.
+- **Never across times.** A claim about time t is never compared with an observation from another time.
+- **Stale values.** Because time offsets are explicit, a reasoner can report, as evidence, that a disputed object value equals the recorded position at a time offset dt < 0. This is the pattern of a stale value (F5). It is reported as evidence for an S2 candidate; it is not a separate verdict.
+
+**Fairness.** The same frames and message format are used by C2, C3 and C4, so this mechanism gives C3 no advantage over the other two-reasoner controls.
+
+#### 13.4 The system decision step (shared by C2–C4) — [PROPOSAL]
+One decision step of the two-reasoner system ends in exactly one world action or one safe stop (12.5.1). The cycle follows Brief 4.2, with Phase B 11.3 inside each reasoner.
+
+1. **Observe.** Both reasoners receive the same complete observation and store it.
+2. **Check (each reasoner, 11.1).** Each reasoner compares **its own retained prediction of the final action** just taken (13.4a) with the observation, on the footprint. It investigates its own mismatch exactly as 11.4, using its own budget. This is how each reasoner's own predictions reveal its own faults, as in C1.
+3. **Pending work (each reasoner).** Deferred investigations, trap V2 tests and model V1 replays continue, as in 11.7.
+4. **Fault activation point** (12.3), for each targeted reasoner.
+5. **Propose.** The proposer chooses an action, exactly as C1 chooses (cautious mode, active test, keep the plan, main search, fallback, safe stop). It predicts that action, and sends a PROPOSAL with the action and the prediction (13.5–13.7 say what else it contains). The proposed action is only a **candidate**: the final action is fixed under 13.4a.
+6. **Review.** This is condition-specific (13.5–13.7). The reviewer's predictions are budgeted from its own counter.
+7. **Compare, only where the condition allows it.** In C2 and C3, the two reasoners' predictions of the **same action** are compared on the two-prediction footprint (10.5). **In C4 there is no immediate-step comparison** (13.7): Agent 2 still predicts the action, and later checks its own prediction of the final action against the observation, but does not compare it with Agent 1's prediction and does not object to it.
+   - **Agreement:** go to 10. Agreement is logged, but is never treated as evidence (Brief R3).
+   - **Disagreement:** recorded as a **mismatch** between reasoners (12.5.4). Go to 8.
+8. **Investigate the disagreement** (Brief 4a; rules R1, R2, R4). Steps a–f apply to a disagreement about the **immediate step**. A **look-ahead (future) disagreement** follows the stricter rules of 13.4b.
+   - **The alert.** A disagreement works as an alert: one reasoner points at a specific element ("look at that"), and the other looks at exactly that element with its own evidence ("I see you see something"). This spreads attention between the reasoners. The alert by itself changes no belief. Only the looking reasoner's own evidence can, which guards against the herd running from nothing (false alarms, H2) and against shared mistakes (R3).
+   - **a. Belief reports.** Each reasoner sends BELIEF_REPORTs for the footprint elements that produced the disagreement.
+   - **b. Its own evidence.** Each reasoner compares **its own** reported values with the evidence: the current observation and history, using the evidence lookups of 11.4. Wall and object values are settled by the current observation.
+   - **c. A value proved wrong.** If one reasoner's value is contradicted by the evidence, that reasoner investigates it as its own mismatch (11.4 A). If V1 passes, it creates its **own** correction record (11.5).
+   - **d. Model suspected.** If the reported values agree with each other and with the evidence, but the predictions still differ, the action models differ.
+     - Each reasoner replays the recorded transitions with action *a* through **its own current model**. This is budgeted, and may continue over several steps, as V1 replays do.
+     - A model that fails a recorded transition is suspected (S1) by its owner, who then restores it as in 11.5.
+     - If no recorded transition with *a* tells the two models apart, the disagreement stays unresolved.
+   - **e. Objections.** An OBJECTION that names the other reasoner and an element is a **claim** (12.5.6).
+     - It is settled by evidence, never by role (R1, R4).
+     - Its target investigates it with its own evidence before changing anything.
+     - An objection the evidence does not support is answered with a RESOLUTION, and stays on record (and counts under M3 if no fault was present).
+   - **f. A safe test** (Brief 4a: "is there a SAFE, low-cost test?").
+     - If the disagreement is still unresolved, either reasoner may send a TEST_REQUEST: a safe action whose observed result would settle it.
+     - It is taken only if both reasoners predict it is safe, by the same rule as a cautious action (step 9). Both predictions are budgeted.
+     - It becomes the step's **final action** (13.4a). The two reasoners' predictions of it are expected to differ: that is what makes it a test. After the action, each reasoner checks its own retained prediction (step 2 of the next cycle), so the reasoner whose prediction fails investigates its own mismatch. The observation is the final evidence (Brief 4.3), and the result is sent as a TEST_RESULT.
+     - **A persistent dissenter is never overruled by agreement.** It is either proved right or proved wrong by the world, and both outcomes stay on record.
+9. **Unresolved** (Brief 4b, 11.6).
+   - **Cautious action:** taken if an action exists that both reasoners predict identically, and that neither predicts puts the object on a dead square in its own analysis.
+   - **Safe stop:** otherwise. Either reasoner may send SAFE_STOP; one that names a reasoner and an element is a claim (12.5.6).
+   - **The limit:** S_max applies to the **system** (Section 14).
+10. **Act.** Exactly one world action is executed: the **final action** fixed under 13.4a. This is the proposed action, an adopted alternative proposal (13.6), the safe-test action (8f), or the cautious action (9).
+11. **Log** everything above.
+
+**Independence (no merging).**
+- A reasoner changes its own belief **only** by:
+  - a footprint update from the observation;
+  - its own correction, verified with its own evidence (11.5);
+  - an unexplained update (10.3).
+- It **never** copies a value from a partner's message.
+- A partner's message is a claim to investigate, never data to adopt. This keeps the two reasoners' views independent: a "trade" of reference happens only through evidence, never by merging.
+
+**Verification.**
+- 11.5 applies unchanged. A correction becomes VERIFIED only through a discriminating prediction **checked against the observation** (V2a), or the model-based trap test of 11.5.
+- The partner's agreement (Brief V2(c), "cross-check by the other agent") is recorded as supporting evidence, but **does not make a correction VERIFIED**. Brief R3 warns that the two agents may share a mistake, and C1 has no partner. Allowing it would make verification easier in C2–C4 than in C1. *(Accepted in the v0.7 review.)*
+
+#### 13.4a The final action and the predictions that must be kept — [PROPOSAL] *(added in v0.8)*
+**One final action.** Before anything is executed, the system fixes exactly **one final action** A\* for the decision step. It is chosen in this order:
+1. **The proposed action:** if the reasoners' predictions of it agree (step 7), or the disagreement was resolved in its favour (step 8).
+2. **An adopted alternative proposal** (C3 only, 13.6): if it was reviewed and the predictions agree. At most one alternative proposal is considered per decision step. A further disagreement makes the step unresolved.
+3. **A safe-test action** (step 8f).
+4. **A cautious action** (step 9).
+5. **Otherwise a safe stop,** with no final action.
+
+Candidates that are abandoned, together with their predictions, are logged but never checked against an observation.
+
+**Which reasoners must predict A\*.**
+- **In C2, C3 and C4, both reasoners** must hold their **own** prediction of A\*, made in this decision step from their own current belief and model. A prediction already made in this step for the same belief and action may be reused at no cost (10.7, reuse).
+- Each reasoner **retains** its prediction of A\* as its committed prediction. After the action, each checks its own retained prediction against the observation (13.4, step 2; 11.1).
+- **The difference between "predicting" and "reviewing".** Predicting A\* for one's own check is required of every reasoner by 11.1. **Reviewing** (comparing one's prediction of A\* with the partner's, and objecting) is condition-specific (13.5–13.7). In particular, in C4 the witness predicts and checks A\* for itself, but does not review it (13.7).
+- **V2 alternatives.** Each reasoner makes the V2 alternative predictions of A\* needed by its own pending corrections (11.5), in correction order, while its budget allows.
+
+**When a required prediction cannot be afforded.**
+- **The reserve makes this rare.** Each reasoner's reserve includes one prediction of A\* (13.2). If that unit was spent on predicting the proposed action, and A\* turns out to be a **different** action, the prediction of A\* must be affordable from what remains.
+- **If either reasoner still cannot predict A\*,** the system takes **no world action**. It safe-stops with the reason `no budget for a committed prediction`, exactly as C1 does (11.6). The safe stop counts toward S_max.
+- A reasoner never acts on, or checks, a prediction it did not make.
+
+#### 13.4b Investigating a future disagreement — [PROPOSAL] *(added in v0.9)*
+A look-ahead disagreement (13.6a) concerns a state that **has not happened**. Its investigation is therefore kept separate from investigating an observation mismatch (11.4).
+
+**What it may do:**
+- raise an **alert** and an **OBJECTION** (a claim, 12.5.6) naming the step, and the reasoner and element suspected;
+- start a comparison of **existing evidence**, as below;
+- lead to a **safe test**, but only once the disputed step has become the immediate step (13.4, step 8f).
+
+**What evidence may be used.**
+- **Present elements only.** A future disagreement can be explained only by elements of the reasoners' **present** beliefs or models: a wall, the current object position, an action model, or a trap status. Each element is checked only against evidence **of its own time**:
+  - **present values** (walls, the current object position) against the **current** observation;
+  - **an action model** against **recorded** transitions (13.4, step 8d);
+  - **a trap status** only by the consequence evidence of 11.4 B.
+- **Never the future against the present.** A predicted **future** state, such as the object's position at step k, is **never** compared with the current observation, or with any recorded observation. The current observation is never treated as proof of any future world state.
+
+**What it can never do by itself.**
+- **No correction from the disagreement alone.** A future disagreement **cannot make a correction CONSISTENT or VERIFIED**. A correction arising from it must meet the evidence requirements of 11.4 and 11.5 exactly as any other: V1 on evidence of the element's own time, and V2 by a discriminating prediction checked against an actual later observation, or by the trap test.
+- **No direct belief change.** It never changes a belief directly (13.4, independence).
+
+**If it stays unresolved.**
+- **The current step is not blocked.** An unresolved future disagreement does not stop the current step, because it concerns the future. It stays on record, with its objection.
+- **It is re-examined when that step becomes the immediate step,** where the immediate-step rules apply (13.4, steps 7–9), including a safe test or a cautious action.
+- **For example, a contested push onto a cell one reasoner's analysis marks dead:** if it becomes the immediate step while still disputed, it can never be a cautious action (step 9), so the system takes a cautious action that avoids it, or safe-stops.
+
+#### 13.5 C2: two identical competent reasoners — [PROPOSAL]
+- **The reasoners:** R1 and R2 are two copies of C1's method.
+- **Proposer:** R1 proposes at every step (a fixed rule, logged).
+- **Review:** R2 runs C1's choice from **its own** belief with its own budget, and obtains its own preferred action.
+  - **Same action:** the two predictions are compared (13.4, step 7).
+  - **Different action:** R2 also predicts R1's proposed action (one evaluation), and that prediction is compared. Two different but agreeing choices are resolved in R1's favour (a fixed rule, logged).
+- **What is reviewed:** only the **immediate next step**, using exactly C1's method.
+- **Reserves:** as 13.2, for both reasoners. Both predict and retain A\* (13.4a).
+
+**What C2 tests:** duplication of the competent method (Lesson L4).
+
+#### 13.6 C3: Agent 1 (incremental) and Agent 2 (temporal-spatial witness) — [PROPOSAL]
+**Agent 1 (R1, spatial, incremental).**
+- Proposes as C1 does, with B/2.
+- Its PROPOSAL carries the action, its prediction of it, and the **announced plan states**: up to L expected states of its current plan, under the conditions of 13.6a (Section 14).
+- **It reviews Agent 2:** it investigates Agent 2's objections and alternative proposals with its own evidence. It may object to Agent 2's claims, and it predicts Agent 2's alternative actions with its own model (reciprocal checking).
+
+**Agent 2 (R2, temporal-spatial witness).**
+- **Its method differs** from Agent 1's: it follows Agent 1's announced plan forward and checks it across time, rather than searching for its own plan. Its review, in budget order after its own checks and pending work:
+  1. **Immediate prediction:** its own prediction of the proposed action, from its own belief (1 evaluation). If the proposed action becomes A\*, this is also Agent 2's retained prediction of A\* (13.4a).
+  2. **Look-ahead along the plan** (anticipation before contact), as defined in 13.6a.
+  3. **Consequence check:** its own trap analysis (a free table lookup, 10.7) on every object position in its simulation. A simulated push onto a cell that its analysis marks dead leads to an OBJECTION naming the step and cell.
+  4. **Trajectory record:** a time-stamped record of both reasoners' predictions, outcomes and messages, measured with the frames of 13.3. It is used as evidence in investigations, for example to show a stale value.
+- **A look-ahead disagreement** (items 2 and 3) is investigated under 13.4b. It is kept distinct from a mismatch against an observation (13.6a, 13.9).
+
+**Overlap.**
+- Agent 2 also has C1's planner. When an investigation shows Agent 1's step or plan to be wrong, Agent 2 may send its own PROPOSAL from its own search, which Agent 1 then reviews (Brief 4.2: "Agent 2 may also propose"). At most one alternative proposal is considered per decision step (13.4a).
+- Each agent can detect the other's mistakes, and neither has authority (R1).
+
+**Reserves.** As 13.2, for both agents.
+
+**What C3 tests:** the hypothesis. Overlapping agents with different methods (search versus plan-following across time) check each other, under the same total budget (H1, H2).
+
+#### 13.6a Announced plan states and the look-ahead — [PROPOSAL] *(added in v0.8)*
+**Where Agent 1's announced states come from.**
+- Each announced state is the **expected state** stored in Agent 1's current plan (C1's planner, 11.2). It was produced by a **budgeted** model evaluation of Agent 1, in the decision step in which that plan was made, from Agent 1's belief and model at that time. Announcing a stored state costs nothing. Making it cost an evaluation once, when the plan was made.
+- **Labels.** Every announced state is labelled with the decision step in which it was computed and with Agent 1's **belief version**. The belief version is a counter that increases whenever Agent 1's belief values, action model or trap overrides change by anything other than a matching footprint update: a correction, a reverted correction, a model restoration, a trap override, or an unexplained update.
+
+**When stored states may be announced, and when they become invalid.**
+- **The immediate step** is always announced with Agent 1's prediction made **in this step** (13.4, step 5), never with a stored state.
+- **Later states** (steps 2 to L of the plan) may be announced only if the plan was made under Agent 1's **current** belief version. If the version has changed since the plan was made, the stored later states are **invalid** and are not announced. Only the immediate step is then announced.
+- Agent 1's **own choice** is unaffected. It keeps or replaces its plan exactly as C1 does (11.3). The rule only limits what may be announced, so Agent 2 never checks states that Agent 1's own current beliefs no longer support.
+
+**How Agent 2's look-ahead is computed.**
+- **Simulation.** Agent 2 applies the announced actions in order, starting from **its own** current belief, with **its own** model. Each simulated state is a model evaluation charged to Agent 2's budget (10.7). No simulated state is created any other way.
+- **Reuse.** Simulated states may be reused only within the same decision step, for the same belief and action (10.7). They are never carried to a later step, and a new decision step simulates afresh.
+- **Stopping.** The look-ahead stops at the first of:
+  - L steps;
+  - the end of the announced states;
+  - the first disagreement;
+  - Agent 2's budget reaching its reserve (13.2).
+
+**How a future step is compared.**
+- **Footprint only** (12.8.2). At announced step k, Agent 2 compares its simulated state with Agent 1's announced state, only on the two-prediction footprint (10.5). That footprint is built from **Agent 2's** simulated state before step k and the action at step k.
+- Comparison continues to step k + 1 only if step k agreed on its footprint, so the two simulations still describe the same positions.
+
+**Hypothetical disagreements are kept distinct from mismatches.**
+- **Look-ahead disagreement:** a footprint difference between Agent 2's simulated state and Agent 1's announced state at a step **not yet taken**. It is recorded as its own kind, separately from:
+  - an **immediate disagreement:** between the two predictions of the immediate step;
+  - an **observation mismatch:** between a retained prediction and the actual observation (12.5.4).
+- **What a look-ahead disagreement does:** it is investigated under 13.4b and may lead to claims (OBJECTION). It never triggers an observation check, is never compared with any observation, and never changes a belief or makes a correction CONSISTENT or VERIFIED by itself.
+- **Scoring:** it is reported separately (13.9).
+
+#### 13.7 C4: the same two agents, exclusive territories — [PROPOSAL] *(revised in v0.8; clarified in v0.9)*
+The same Agent 1 and Agent 2 as C3, with the same budgets and messages, but each checks **only its own territory** and **trusts** the other (Brief 11.4, Lesson L3).
+
+**The territories.**
+- **Agent 1's territory:** the immediate step, meaning the proposed action, the final action, and the belief elements in their footprints.
+- **Agent 2's territory:** the context, meaning the announced later steps (the look-ahead), the consequence (trap) checks, and the trajectory record.
+
+**What is the same as in C3** (so that C3 − C4 tests overlap, not differences in information or budget):
+- the same observations, history and message types;
+- the same budget **limits** and reserves (13.2);
+- the same announced plan states (13.6a);
+- the same prediction **duties**. In particular, Agent 2 still makes its immediate prediction (13.6, review item 1) and its look-ahead.
+- **Own checks unchanged:** each agent still predicts and **retains** its own prediction of A\*, checks it against the observation, investigates its own observation mismatches, and creates and verifies its own corrections with its own evidence (13.4a, 11.1, 11.4, 11.5; 12.8.1).
+
+**What changes from C3** (the only differences):
+1. **No review across territories.**
+   - Agent 2's prediction of the immediate step is used **only for its own check**. It is **not compared** with Agent 1's prediction, and Agent 2 sends no OBJECTION about the immediate step.
+   - Agent 1 does not compare predictions about the context.
+2. **Trust instead of investigation.**
+   - **What Agent 1 does:** when Agent 2 sends an OBJECTION within its territory (a look-ahead disagreement or a consequence objection), Agent 1 **accepts it without investigating**.
+   - **The planning constraint:** accepting means adding the objection to a **planning constraint list** owned by Agent 1. Each entry names either:
+     - an announced (state, action) step, whose successor Agent 1's searches must treat as excluded; or
+     - for a consequence objection, a cell onto which the object may not be pushed.
+
+     Agent 1 then discards its current plan and replans under the constraints, as C1 replans.
+   - **Never copying a belief:** a constraint is **not** a belief value. It never enters Agent 1's belief, trap analysis, history, correction records or verification. Accepting an objection is therefore not copying Agent 2's belief (13.4, independence). It changes only which plans Agent 1 may choose.
+   - **Lifetime:** constraints remain until the end of the run, and are counted and reported.
+   - **The fallback:** if the constraints leave Agent 1 no plan and no fallback, it safe-stops (11.6).
+3. **No proposals by Agent 2,** no safe tests across territories, and no objections outside the sender's territory.
+
+**Equal access, different amounts of work.**
+- C3 and C4 have **equal available information and equal budget limits**. Because their review rules differ, they may **actually perform different amounts of computation**. For example, C3 investigates objections across territories, and C4 does not.
+- **These differences are not equalised artificially:** no extra work is added to C4, and none is removed from C3. Budget C4 does not spend is lost at the end of the step, never transferred (13.2).
+- **They are reported:** evaluations used, free computations, messages and investigations, per agent and per condition (13.9).
+
+**What C4 tests:** whether **overlap**, meaning mutual review across territories, matters compared with C3 (H4), with information, predictions and budgets held equal.
+
+#### 13.8 Fault targets in two-reasoner conditions — [PROPOSAL]
+- **Same list:** the fault-event list (12.2) is identical for every condition. In C2–C4, each event's target (R1, R2 or both) is fixed when the list is generated, and is **the same in C2, C3 and C4**.
+- **Balance:** for each fault type, targets are balanced over the whole confirmatory experiment. A seeded permutation gives exactly half of that type's single-reasoner events to R1 and half to R2. If the count is odd, the seeded permutation decides the extra event.
+- **Common mode:** the common-mode share (Section 14) is drawn per fault type with a seeded permutation, so each type has the same share. Common-mode events apply the same details to both reasoners (12.2).
+- **C0 and C1:** every event, whatever its target, is applied to the single reasoner (4.2).
+
+#### 13.9 Events and measures specific to two reasoners — [PROPOSAL] *(revised in v0.8; A1 and I1 in v0.9)*
+**Reconciliation with Phase B.**
+- **This section does not modify 12.5.** Every Phase B definition (effective use, mismatch, mismatch detection, claim, correct identification, strict detection, false alarm, verified correction) applies unchanged.
+- **What it adds** is clearly labelled **secondary** scoring, needed because two reasoners make it possible for a fault to be **active and used, yet not the cause** of a disagreement.
+- **Amendment status: A1, formally proposed.** The counterfactual attribution below is a **secondary scoring extension** of the shadow machinery of 12.4. It is proposed as **amendment A1**, and requires **explicit approval by the owner and the independent reviewer before the protocol is frozen** (13.12, Section 15).
+  - **It does not alter** the primary strict-detection (12.5.8) or false-alarm (12.5.9) definitions, or any other Phase A or B definition.
+  - **M2** depends only on claims naming the right reasoner and element, never on causation.
+
+**Four separate levels for each fault event e and each recorded disagreement or mismatch d:**
+
+| Level | Definition | Source |
+|---|---|---|
+| **Activation** | e was applied at its scheduled step | 12.3 (unchanged) |
+| **Effective use** | e changed the result of a computation compared with its shadow | 12.5.2 (unchanged) |
+| **Causal contribution** *(secondary; amendment A1)* | Defined by the intervention below | Deterministic counterfactual in the experimenter's scoring-only machinery (12.4). Never visible to any reasoner; never uses any budget. |
+| **Strict identification** | The first claim, while e is active, naming e's reasoner and element | 12.5.8 (unchanged) |
+
+**The A1 intervention, exactly.** For a recorded disagreement or mismatch d, and an active fault event e with an effective use in a prediction compared in d:
+1. **Restore only e's faulted element** (one belief value, `model(a)`, or `trap(p)`) to its true value.
+2. **Hold everything else fixed:** every other active fault, and every other input of the compared predictions. That means the same pre-states apart from e's element, the same actions, and the same footprint cells as d.
+3. **Recompute** the compared prediction or predictions with the scoring-only machinery.
+4. **Compare again** on the same footprint cells. For an observation mismatch, the observation itself is the fixed other side.
+5. **The verdict.**
+   - e is a **causal contributor** to d if the result of the comparison changes: d disappears, or its differing cells or outcomes change.
+   - If no single event changes the result, but restoring **all** events with an effective use in d **together** makes d disappear, they are recorded as **joint contributors**.
+   - Otherwise e is **used but not causal** for d.
+
+This calculation is entirely outside the reasoners' information and budgets. Causal and joint contributions are reported **only as secondary results**.
+
+**Which kinds of disagreement or mismatch are recorded** (13.6a):
+- observation mismatch (12.5.4);
+- immediate disagreement between reasoners (12.5.4, "between two reasoners' predictions");
+- look-ahead disagreement (13.6a), recorded as a disagreement between two reasoners' **hypothetical** predictions.
+
+**How each is scored:**
+- **M2a, mismatch detection (Phase B definition, unchanged):** uses observation mismatches and immediate disagreements, caused as in 12.5.4.
+- **Look-ahead disagreements** are **classified for Experiment 1** as separately reported **anticipatory detection**. They are **not** counted in M2a. This interpretation of 12.5.4 is recorded before the freeze, as **I1** (13.12). It does not affect M2.
+- **M2a-causal (secondary, new):** as M2a, but counting e only where e is a causal or joint contributor to d.
+- **M9, disagreement outcomes:** for each disagreement, whether the reasoner whose position the evidence upheld was the one holding a **causal contributor**. "Both contributors" (for example common-mode, or joint), "neither" (investigated as a possible bug, Phase A 8.4) and "unresolved" are reported separately.
+- **Claims:** OBJECTION and SAFE_STOP messages that name a reasoner and an element, and correction records (12.5.6). Accepted C4 constraints are **not** claims by Agent 1. The OBJECTION that caused them is Agent 2's claim.
+- **Reasoner attribution** (M2b): the first claim, while e is active, that names e's reasoner.
+- **Per-reasoner reports:** budget used, free computations, messages sent, claims and planning constraints, per reasoner (M11; Brief 11.5.3).
+- **M_max reached:** how often the message limit was reached, reported per condition.
+
+#### 13.10 The owner's design inputs: what enters Experiment 1, and what waits — [PROPOSAL]
+**The principle.** Phase B's shared rules apply to every condition, and C1 is frozen. A new **general** capability given only to C3 would mix up two questions: "does a second, overlapping agent help?" and "does this new capability help?". A result could then not be attributed to the two-agent design. So Experiment 1 includes only ideas that are about **two reasoners checking each other**. General new capabilities are recorded for later experiments, each to be tested with its own fair baselines under a new protocol (Phase A 9.5).
+
+| Owner's input | In Experiment 1? | How, or why not |
+|---|---|---|
+| Spatial agent plus temporal-spatial witness, overlapping, reciprocal | **Yes** | C3 (13.6) |
+| The common relative zero, with signed offsets and fixed / moving references | **Yes** | 13.3, used by C2–C4 alike |
+| Claims normalised before comparison (13.3) | **Yes** | 13.3 |
+| Disagreement is an alert: one agent points, and the other looks there with its own eyes (the owner's herd / distributed-observation image) | **Yes** | The objection directs the partner to the exact element, which it checks against its own evidence (13.4, step 8). The alert alone changes nothing; false alarms are measured (H2). Graded trust waits for a later experiment (observation 7) |
+| Channels as evidence labels, not limits on access | **Yes** | Every message names its evidence (13.2); observations stay complete |
+| Dissent preserved and rewarded: the one who keeps looking may be right (the owner's Darwin / invention image) | **Yes** | No agent can be overruled or merged away (R1, the independence rule). An unresolved disagreement can be settled by a safe test proposed by the dissenter and decided by the observation (13.4, step 8f). Gradually growing trust waits for a later experiment (observation 7) |
+| Equal budgets, counted message costs, no unbounded free reasoning | **Yes** | 13.2, Section 14 |
+| Obs. 1: reflex, sensing before contact | **Partly** | Agent 2's look-ahead and consequence check find disagreements **before** the step is taken (13.6). Continuous sensing outside predictions is not allowed (11.1) |
+| Obs. 6: trading zero versus being merged | **Yes** | The independence rule (13.4): values change only through one's own evidence, never by copying |
+| Obs. 8: confirmation through the other's experience | **Partly** | The partner's cross-check is recorded as supporting evidence, but VERIFIED still needs 11.5's V2 (13.4; accepted in the v0.7 review) |
+| Obs. 10: provenance; "don't forget the stranger" | **Yes** | Every claim and message keeps its source and evidence (13.2) |
+| Obs. 11: records that cannot be made to forget | **Yes** | Append-only message log and trajectory record (13.2, 13.6) |
+| Obs. 2: awareness beyond the route (monitor the whole area) | **No: later experiment** | It conflicts with 11.1 and 12.1. Continuous whole-area comparison would reveal F1, F2 and F5 at once in every condition (the ceiling effect Phase B prevents), and it would have to be given to C1 too |
+| Obs. 3: paired estimates adjusting the heuristic | **No: later experiment** | The heuristic is a fixed free computation (10.7). Phase C may not add or change free computations |
+| Obs. 4: paw-level and mind-level groups, local reflex reserves | **No: later experiment** | Experiment 1 has two reasoners. Groups are Brief Section 5 (Stage 9+) |
+| Obs. 5: tracking "room to act", resisting a trap | **No: later experiment** | It would need a new computation (reachability) and a change to C1's safe-stop behaviour |
+| Obs. 7: graded trust; fading weight | **No: later experiment** | 11.5's statuses (CONSISTENT / VERIFIED / REJECTED) apply unchanged to every condition |
+| Obs. 9: retreat to safe ground; vigilance map | **No: later experiment** | It changes 11.6 behaviour, which must be shared with C1 |
+| Obs. 10: third-party dangers, new kinds of hazard | **No: later experiment** | The Experiment 1 world (Brief 11.2) contains none |
+
+The deferred inputs stay in `PHASE_C_design_inputs.md`, marked for later experiments.
+
+#### 13.11 Tests the Stage 6 plan must include — [PROPOSAL]
+In addition to the Phase B tests (12.9), applied to each reasoner, the Stage 6 plan must test at least the following, using valid worlds:
+1. **Budgets:** each reasoner never exceeds B/2; unused budget is never transferred; each reserve is kept.
+2. **Messages:**
+   - no message carries a whole belief;
+   - BELIEF_REPORTs are sent only during an investigation;
+   - the message log is append-only;
+   - M_max is enforced.
+3. **Frames (13.3):**
+   - zero, positive and negative offsets; boundaries;
+   - round trips, fixed and moving references;
+   - agreement after conversion to the shared frame;
+   - a deliberately wrong conversion is detected and logged as a frame inconsistency;
+   - a claim is never compared across different times;
+   - a stale value is reported with its dt < 0.
+4. **Independence:**
+   - a reasoner never copies a partner's value;
+   - a partner's objection changes nothing until its target's own evidence supports a correction.
+5. **Disagreement cases** (deliberate failure checks with hand-made faults):
+   - R1 wrong, R2 right;
+   - R2 wrong, R1 right;
+   - both wrong in the same way (common mode: no disagreement arises);
+   - both wrong differently;
+   - neither able to resolve (cautious action or safe stop).
+   - a safe test settles a persistent disagreement, both when the dissenter is right and when it is wrong, and is taken only when both reasoners predict it is safe.
+
+   Each case gives the expected claims, corrections and log lines, from a reference implementation.
+6. **Look-ahead (C3):**
+   - a faulty action model in Agent 1 produces a disagreement at the look-ahead step where the faulty push occurs, **before** that step is taken;
+   - a missed dead square in Agent 1's plan produces Agent 2's consequence objection.
+7. **Reciprocal checking (C3):**
+   - Agent 1 detects a fault in Agent 2;
+   - an unsupported objection by Agent 2 is answered with a RESOLUTION, and Agent 1's belief is unchanged.
+8. **C4 restrictions:**
+   - Agent 2 makes the same predictions as in C3, including its immediate prediction, but never compares it with Agent 1's and never objects about the immediate step;
+   - Agent 2 retains and checks its own prediction of A\*;
+   - Agent 1 accepts context objections without investigating, as planning constraints that never change its belief, records or trap analysis;
+   - neither objects outside its territory;
+   - with identical inputs, C3 and C4 make the same predictions up to the first cross-territory comparison.
+9. **Verification:** a partner's agreement alone never makes a correction VERIFIED.
+10. **Same frame and format:** C2, C3 and C4 use identical message and frame code.
+11. **Fault targets:** balanced halves per type over a generated list; common-mode share per type; identical targets in C2–C4.
+12. **The final action (13.4a):**
+    - exactly one final action per step, chosen in the stated order;
+    - both reasoners hold and retain their own prediction of A\*, when A\* is the proposal, an alternative, a safe test, or a cautious action;
+    - abandoned candidates are never checked;
+    - when a reasoner cannot predict A\*, the system safe-stops with `no budget for a committed prediction`, and no world action is taken;
+    - optional work never breaks into a reserve, and only the prediction of the proposed action may use the reserve's unit.
+13. **Announced states (13.6a):**
+    - every announced later state comes from an earlier budgeted evaluation of Agent 1, and carries its step and belief-version labels;
+    - after a correction, a reverted correction, a model restoration, a trap override or an unexplained update, the stored later states are not announced;
+    - Agent 1's own plan choice is identical with and without announcing.
+14. **Look-ahead (13.6a):**
+    - every simulated state is charged to Agent 2;
+    - simulated states are not reused across steps;
+    - the look-ahead stops at the reserve, at L steps, or at the first disagreement;
+    - look-ahead disagreements are recorded as their own kind and never trigger an observation check.
+15. **Scoring (13.9), in the scoring code:**
+    - the A1 intervention restores only e's element and holds all other faults and inputs fixed;
+    - a fault that is active and used, but whose removal leaves a disagreement unchanged, is not a causal contributor;
+    - a fault whose removal makes the disagreement disappear is one;
+    - joint contributors are found when only removing several faults together resolves the disagreement;
+    - M2 is unaffected by causation.
+16. **A future disagreement is not an observation (13.4b).** An exact case:
+    - **Setup:** Agent 1 has a hand-made faulty model for East, so that it pushes north, while Agent 2's model is correct. Agent 1's announced plan contains an East push at look-ahead step k, so the two reasoners predict **different object positions** for the same future state.
+    - **Expected behaviour:**
+      - a look-ahead disagreement and an OBJECTION are recorded;
+      - neither agent compares its predicted future object position with the current observation, or any recorded observation;
+      - no correction becomes CONSISTENT or VERIFIED because of the disagreement;
+      - Agent 1's model is restored only through replays of **recorded** East transitions (if any exist) or, failing that, only after the push is actually taken and its observation checked;
+      - the current step is not blocked.
+    - **Exact expected values:** the expected log lines and evaluation counts come from a reference implementation.
+17. **C4 has no immediate-step comparison:** in C4 the immediate predictions of the two agents are never compared, even when they differ, while both are still checked against the observation.
+18. **A correct future warning is kept, and acted on at the right step** (requested in the v0.9 review).
+    - **Setup:** Agent 2 correctly warns, in a look-ahead disagreement, about a step that is still in the future.
+    - **Expected behaviour:**
+      - the warning (objection) is retained on record;
+      - the current, safe action is **not** blocked, and is taken;
+      - when the warned step becomes the immediate step, the disagreement is investigated under the immediate-step rules (13.4, steps 7–9), and is resolved, tested safely, or avoided by a cautious action, as those rules require.
+    - **Exact expected values:** the expected log lines come from a reference implementation.
+
+#### 13.12 Amendments and interpretations to be approved before the freeze — [PROPOSAL] *(added in v0.9)*
+| ID | Kind | Content | Requires |
+|---|---|---|---|
+| **A1** | Secondary scoring extension of 12.4 | Counterfactual attribution of causal and joint contributors (13.9), used only for the secondary M2a-causal and for M9. It changes no primary definition. | Explicit approval by the owner **and** the independent reviewer before the freeze |
+| **I1** | Interpretation of 12.5.4 | For Experiment 1, look-ahead (hypothetical) disagreements are reported separately as anticipatory detection, and are **not** counted in M2a | Recorded and approved with the freeze |
+
+Both are listed in the freeze record (Section 15).
+
+---
+
+### 14. Numbers — [PROPOSAL]
+Each number is a design judgment fixed **before any pilot**. Pilots may change a number only for the reasons in 9.2 (it does not work), never because of comparative results (9.3).
+
+| Number | Value | Reason |
+|---|---|---|
+| **B** (per decision step) | **200** | The value used in Stage 3. Reference checks of the plan (5.6) found C1 reaching the goal in 158 of 160 solvable fault-free layouts. |
+| **Split** in C2–C4 | **100 + 100** (equal halves, no transfer) | The brief's default (11.5.3). A feasibility check with the reference implementation, of whether a half-budget reasoner can act at all (9.2), found one reasoner with B = 100 reaching the goal in 149 of 156 solvable fault-free layouts. So no reasoner is starved. |
+| **T_max** (world steps) | **100** | About three times the longest shortest solution allowed (layouts below, at most 40 steps). |
+| **S_max** (safe stops per run) | **5** | Allows deferred work to be retried several times, while bounding how long a system may avoid acting. The same for every condition. |
+| **T_v** (steps before an active test) | **3** | Gives passive verification (a future discriminating prediction) a chance first. |
+| **L** (look-ahead steps, C3 and C4) | **10** | Within the budget of one half; about the median solution length. |
+| **M_max** (messages per decision step) | **16** | Enough for one proposal, the reviews, belief reports for one footprint (at most 3 cells, 2 reasoners) and a resolution, with a margin. Bounds free activity. |
+| **Fault events per run** | **3** | Enough to measure detection per run, without most runs being swamped. |
+| **Event steps** | 3 distinct decision steps, drawn uniformly from **1–10** (seeded) | Layouts need solutions of at least 12 world steps, so no run can **succeed** before step 12. Events at steps 1–10 are therefore **expected** to activate in every run that continues long enough, which supports common exposure (4.4). **This is not guaranteed:** a run that ends early, for example by reaching S_max, can end before an event's step. Such events are not activated, and are counted and reported as such (4.3). |
+| **Fault-type mix** | Equal: **20% each** of F1–F5 (a seeded permutation over the experiment) | No type is favoured. Results are always reported per type (8.3). |
+| **F1 direction split** | **50% free→blocked, 50% blocked→free** | Both directions; 12.7.3 makes their difference important. |
+| **Common-mode share** | **20%** of events, per type | The brief's example value (11.5.1); models shared mistakes (Lesson L5). |
+| **Common-exposure warning threshold** | **20%** | If more than 20% of a condition's activated events are excluded from a comparison's common-exposure set, the report states it prominently (4.4). |
+| **Layouts** | 10×10, border walls, about 12% interior walls (seeded), seeded agent, object and destination | Valid (Stage 1). **Solvable**, checked by the experimenter's breadth-first search over true states (never visible to agents). Shortest solution of **12–40** world steps. At least one true dead square (Brief 11.2; F4 needs one). |
+| **N layouts × M seeds** (confirmatory) | **400 × 5** (2,000 runs per condition) | Chosen in advance, never from effect estimates (6.5). *(Justification corrected in v0.8.)* A per-layout difference of rates lies in [−1, 1], so its standard deviation can be anywhere up to 1. The approximate bootstrap 95% half-width is 1.96 × SD / √400: about **4.9 points** if SD ≈ 0.5, and up to about **9.8 points** in the worst case SD = 1. **This is an acknowledged risk:** if layout-level differences are highly variable, intervals may be too wide to decide, and verdicts may be **Inconclusive** (7.2, 7.3). The sample size is fixed before any run, and is not changed in response to results. |
+| **Pilot set** | **40 layouts × 2 seeds** from a separate generator seed range | Never used in the confirmatory experiment (9.1). |
+| **Generator seed ranges** | Pilot: 900000–900039. Confirmatory: 100000–100399 (layouts); run seeds 1–5 per layout | Disjoint ranges, fixed in advance. |
+| **Bootstrap seed** | **20261020** | Fixed and recorded (6.3). |
+
+---
+
+### 15. Freeze record — [placeholder]
+To be completed when the whole protocol is approved:
+- the approval date and reviewers;
+- the `DECISIONS.md` entry;
+- the commit and the `protocol-1-approved` tag (9.5);
+- the approval of amendment **A1** and interpretation **I1** (13.12).
+
+Before the freeze:
+- Section 13 is checked by a reference implementation of C2–C4 (as was done for C1);
+- pilots are run on the pilot set, for the purposes in 9.2 only.
 
 ---
 
@@ -870,3 +1336,6 @@ Approval, `DECISIONS.md` entry, and the `protocol-1-approved` tag.
 | Draft v0.5 | 2026-10-19 | ChatGPT reviewed v0.4, supported the overall Phase B design (footprint-based, prediction-triggered checking applied equally to all conditions, with full observations and history available during investigations), and requested targeted corrections. Only the affected Phase B sections were revised. **(1) Time-aware V1 (11.5):** each element is verified against observations at its own time: walls against every recorded observation (walls never change); a corrected object position against the observation of the same moment and the mismatched transition, never against earlier positions; action models against each recorded transition from its own pre-state; trap classifications by the exhaustive-search evidence, with V2 by an independent second search. **(2) Budget (10.7):** any operation that generates or evaluates a successor state (including partial states) is budgeted; every examined state must come from a budgeted evaluation; the only free computations are listed with fixed scopes and bounds (trap analysis over object cells only, run only when believed walls change; heuristic by table lookups, called only on budgeted states); all are counted and reported; Phase C may add no other free computation, so two-reasoner conditions gain no uncharged capacity. **(3) Fault lifecycle (10.3, 12.3, 12.5):** belief changes are matching footprint updates, corrections, logged *unexplained updates*, or injected faults; value faults (F1, F2, F5) and process faults (F3, F4) defined separately; the scorer records each event as corrected (with status), overwritten without correction, or active at end; detection, correction and verification are credited only through claims and correction records, never through a restored value. **(4) Deterministic footprint (10.5):** c2 inclusion rule completed (believed object at c1, observed Pushed, or observed object at c1); cells chosen before comparison from belief and observation only; the same rule for comparing two reasoners' predictions; a table of disagreement cases. **(5) C0 (11.8):** initial planning, plan execution without search, and continuation only when the plan is used up, never triggered by observation. **(6)** Limitation 12.7.1 strengthened (results do not apply to every possible single-agent architecture; stated beside the primary conclusion). S1 explicitly includes a corrupted internal action model or consequence analysis; S3 reserved for actual environment rules or execution (11.4, 12.2). Consequence mismatches (how F4 can be noticed) defined (11.4 B). New 12.9 lists the tests `STAGE_03.md` must include. **Sections 1–9 (Phase A) unchanged.** Not approved; not frozen. |
 | Draft v0.6 | 2026-10-19 | ChatGPT reviewed v0.5, accepted all six v0.4 corrections, and requested one final conceptual correction about the trap analysis and F4. **(1) 11.2:** a trap is now defined precisely as a **dead square**, a cell outside the smallest set *R* that contains the destination and is closed under *relaxed* pushes (both the cell behind and the cell in front believed free, agent reachability ignored). It is stated that a dead square makes every full state with the object there unsolvable, but that full-state dead ends with the object on a non-dead square exist, are not detected by the analysis, and are not F4 faults. **(2) 11.4 B:** an exhaustive search ending without a solution is now only a **consequence surprise** (a trigger, not evidence). A **consequence mismatch** requires a contradiction of the relaxed claim itself: the free one-cell **dead-square local check** finds that the stored status "*p* not dead" violates the analysis rule. Otherwise the state is logged as a full-state dead end, and no claim is made. **(3) 11.5:** V1 and V2 for `trap(p)` now test the same claim, "*p* is a dead square": V1 is the local analysis-rule check; V2 is a model-based local test (at most 4 budgeted push predictions from hypothetical states "agent at *p* − *d*, object at *p*"), replacing the second full-state search. **(4) 12.2:** F4 overwrites the stored status of a true dead square *p* with "not dead" after each analysis run, leaving every other cell's status unaffected; true value for scoring: "dead". **(5) 12.9:** new tests distinguishing dead squares from full-state dead ends, and testing valid and invalid F4 claims. 10.7 adds the bounded local check to the free computations and permits budgeted predictions from the V2 hypothetical states; 12.7.4 restricts F4 to dead squares. Checked by brute force for this draft on 1,500 random 7×7 layouts: 0 of 366,770 full states with the object on a dead square were solvable; the local check rejected every corrupted dead-square status (19,306 cases); and 28,372 full-state dead ends on non-dead squares were found, confirming that the two notions differ. **Sections 1–9 (Phase A) unchanged.** Not approved; not frozen. |
 | v0.6 — Phase B approved | 2026-10-19 | **Phase B (Sections 10–12) APPROVED** by ChatGPT's independent review and by the owner. ChatGPT confirmed that v0.6 correctly distinguishes dead squares (relaxed reverse-push analysis) from full-state dead ends; a consequence surprise (trigger only) from a consequence mismatch (a contradiction of the dead-square classification); and accepted the revised F4 definition, the local V1 check and the budgeted model-based V2 test. The earlier Phase B safeguards remain accepted: equal information, computational budgets, fault persistence, time-aware verification, and protection of the competent single-agent baseline. Only the status lines changed; the content of Sections 10–12 is identical to Draft v0.6. **Sections 1–9 (Phase A) unchanged.** **The complete protocol is not frozen**; Phase C remains. The `protocol-1-approved` tag is reserved for the complete protocol. |
+| Draft v0.7 | 2026-10-20 | **Phase C (Sections 13–15) drafted** by Claude after Stage 3 was completed and tagged (`7587f38`), drawing on the owner's design inputs (spatial agent and temporal-spatial witness, the common relative zero). Two-reasoner behaviour for C2–C4, all numbers, and a freeze-record placeholder. ChatGPT accepted the architecture and requested five targeted changes. |
+| Draft v0.8 | 2026-10-20 | **(1)** One final action per step; both reasoners predict and retain it; reserves; the no-budget safe stop (13.4a). **(2)** Origin and validity of announced plan states; budgeted look-ahead; look-ahead disagreements kept distinct from observation mismatches (13.6a). **(3)** C4 rewritten as an exclusive-role control with planning constraints that are not beliefs (13.7). **(4)** Activation, effective use, causal contribution and strict identification distinguished (13.9). **(5)** The sample-size justification corrected (worst-case half-width about 9.8 points); event activation described as expected, not guaranteed. |
+| Draft v0.9 — approved for validation | 2026-10-20 | **(1)** New 13.4b: a future disagreement is never checked against the present and can never make a correction CONSISTENT or VERIFIED. **(2)** Step 7 compares only where the condition allows; C4 has no immediate-step comparison; C3 and C4 have equal information and budget limits, and their actual computation may differ and is reported. **(3)** Counterfactual attribution formally proposed as **amendment A1**, with the exact fixed-input intervention; look-ahead disagreements classified as anticipatory detection, not in M2a (**interpretation I1**); new 13.12. Test 18 added at review. **APPROVED FOR VALIDATION** by ChatGPT's independent review and by the owner, including A1 and I1. Owner's approval given after going through the design in his own terms. **Not frozen:** the reference implementation of Section 13 and feasibility pilots must be completed and reviewed before the freeze. **Sections 1–12 (Phases A and B) unchanged.** |
