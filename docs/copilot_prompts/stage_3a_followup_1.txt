@@ -1,0 +1,118 @@
+You are the project's coding assistant, in place of GitHub Copilot. Every rule in .github/copilot-instructions.md that is addressed to Copilot applies to you, including rules 2a-2g. Read that file, the brief docs/AI_Hologram_Project_Brief_v1.1.txt, the protocol docs/EXPERIMENT_1_PROTOCOL.md (Phase B), and the plan docs/stages/STAGE_03.md (v1.2) before changing anything. Never run git commit, git push, or any command that changes Git history; leave all Git operations to the owner.
+
+Sub-stage 3a follow-up 1 (docs/stages/STAGE_03.md v1.2, tests FP1-FP12).
+
+The footprint code in src/agent/footprint.h/.cpp and src/agent/observation.h is correct; do not change those files. But tests/test_footprint.cpp breaks the plan's rules:
+- several fixtures are invalid worlds (a wall on the object's cell; the agent on the border at (0, 0));
+- no test checks its fixtures with isValidWorld;
+- some checks are too weak ("at least 2 differences");
+- FP1 does not use the demo layout.
+As a result, 6 checks fail.
+
+Rewrite ONLY tests/test_footprint.cpp, exactly as follows.
+
+Fixtures:
+- Use the Stage 1 demo layout, parsed with parseWorld: agent (3, 3), object (5, 3), destination (8, 3), interior walls (4, 6) and (5, 6). Call it D.
+- Build variants by changing only the positions or walls named below.
+- Every belief and true state must pass isValidWorld, and each test checks this with check(), as test_compare.cpp does.
+- Predicted states come from applyAction(belief, action); observed states come from applyAction(trueState, action).
+- In the expected differences below, (wall, agent here, object here) is listed for the predicted state, then for the observed state, for each cell that differs. Check the exact number of differing cells and each listed flag. Cells not listed must not appear.
+
+FP1:
+- Start from D, with belief = true state.
+- Apply this exact sequence of 30 actions:
+  E E E E E N W W W S S E E N N N N W W S S S S S S E E E W N
+  (N = North, E = East, S = South, W = West).
+- For each action:
+  - compute the footprint from the belief before the action;
+  - apply the footprint update with the observed state;
+  - check belief == true state.
+- The sequence contains 23 Moved, 3 Pushed and 4 Blocked steps. Also check those three counts.
+
+FP2 - Moved/Moved:
+- Belief = true = D. Action North.
+- Cells: (3, 3), (3, 2).
+- Outcomes Moved/Moved. No differences.
+
+FP3 - wall missing from the belief:
+- Belief = D. True = D plus a wall at (4, 3). Action East.
+- Cells: (3, 3), (4, 3).
+- Outcomes Moved/Blocked (they differ).
+- Differences:
+  - (3, 3): predicted (F, F, F), observed (F, T, F);
+  - (4, 3): predicted (F, T, F), observed (T, F, F).
+
+FP4 - wall wrongly believed:
+- Belief = D plus a wall at (4, 3). True = D. Action East.
+- Cells: (3, 3), (4, 3).
+- Outcomes Blocked/Moved.
+- Differences:
+  - (3, 3): predicted (F, T, F), observed (F, F, F);
+  - (4, 3): predicted (T, F, F), observed (F, T, F).
+
+FP5 - predicted Blocked, observed Pushed:
+- Belief = D with the agent at (4, 3) and a wall at (6, 3). True = D with the agent at (4, 3). Action East.
+- Cells: (4, 3), (5, 3), (6, 3).
+- Outcomes Blocked/Pushed.
+- Differences:
+  - (4, 3): predicted (F, T, F), observed (F, F, F);
+  - (5, 3): predicted (F, F, T), observed (F, T, F);
+  - (6, 3): predicted (T, F, F), observed (F, F, T).
+
+FP6 - object believed elsewhere, observed Pushed:
+- Belief = D with the agent at (4, 3) and the object at (5, 4). True = D with the agent at (4, 3). Action East.
+- Cells: (4, 3), (5, 3), (6, 3) (rule ii).
+- Outcomes Moved/Pushed.
+- Exactly one difference: (6, 3): predicted (F, F, F), observed (F, F, T).
+
+FP7 - object believed elsewhere, push blocked (rule iii):
+- Belief = D with a wall at (6, 3), the agent at (4, 3) and the object at (5, 4). True = D with a wall at (6, 3) and the agent at (4, 3). Action East.
+- Cells: (4, 3), (5, 3), (6, 3).
+- Outcomes Moved/Blocked.
+- Differences:
+  - (4, 3): predicted (F, F, F), observed (F, T, F);
+  - (5, 3): predicted (F, T, F), observed (F, F, T).
+
+FP8 - predicted Pushed, observed Moved:
+- Belief = D with the agent at (4, 3). True = D with the agent at (4, 3) and the object at (5, 4). Action East.
+- Cells: (4, 3), (5, 3), (6, 3) (rule i).
+- Outcomes Pushed/Moved.
+- Exactly one difference: (6, 3): predicted (F, F, T), observed (F, F, F).
+
+FP9 - different agent positions:
+- Belief = D (agent at (3, 3)). True = D with the agent at (3, 4). Action North.
+- Cells: (3, 3), (3, 2).
+- Outcomes Moved/Moved (they do NOT differ).
+- Differences:
+  - (3, 3): predicted (F, F, F), observed (F, T, F);
+  - (3, 2): predicted (F, T, F), observed (F, F, F).
+
+FP10 - matching update:
+- True = D. Belief = D plus an extra wrong wall at (2, 7), which is outside the footprint. Action East.
+- Check that the comparison has no differences.
+- Apply the update, then check:
+  - the belief's agent and object equal the observed ones;
+  - every footprint cell's wall equals the observed one;
+  - the wall at (2, 7) is STILL in the belief (nothing outside the footprint changed).
+
+FP11 - two predictions:
+- Belief A = D with the agent at (4, 3) (object at c1), predicting Pushed. Belief B = D with the agent at (4, 3) and the object at (5, 4), predicting Moved. Action East.
+- Check:
+  - the cells are (4, 3), (5, 3), (6, 3);
+  - swapping A and B gives the same cells;
+  - when both beliefs have the object at (5, 4) and both predict Moved, the cells are only (4, 3), (5, 3).
+
+FP12 - outside the grid:
+- Call compareFootprint with D as both states and the cell list {(-1, 3), (10, 3), (3, -1), (3, 10)}. Check no differences, and that each cell is reported as a wall in both states. (Build these differences with a helper if needed: every outside cell has predictedWall and observedWall true.)
+- Call applyFootprintUpdate with that cell list on a copy of D, and check the copy is unchanged.
+- With the agent at (1, 3) and action West, check the cells are (1, 3), (0, 3), and that (0, 3) compares as a wall.
+
+Rules:
+- Keep functions under about 40 lines and the file under about 200 lines. If the file would be longer, split it into tests/test_footprint.cpp and tests/test_footprint_cases.cpp, register the new file in CMakeLists.txt, and say so in your handoff note.
+- Keep the three-part header and beginner comments.
+- No exceptions, assertions or random numbers. Do not change any other file, except CMakeLists.txt if you split the test file.
+- Do not create scratch or debug files anywhere in the project. Use only the test program to check behaviour.
+- Do not rename, move, or delete files, and do not edit anything in docs/.
+- If an expected value above seems wrong, stop and report it instead of changing the expectation.
+
+When finished, rebuild and run the tests (rule 2g), and report the exact result line. Append a handoff note (rule 2f) covering both the original 3a work and this follow-up, saying honestly what was built and run. Do not commit.

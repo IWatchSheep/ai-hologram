@@ -1,0 +1,34 @@
+Read .github/copilot-instructions.md (including rules 2f and 2g), the brief docs/AI_Hologram_Project_Brief_v1.1.txt, the approved protocol docs/EXPERIMENT_1_PROTOCOL.md (Phase B, Sections 10-12, especially 10.5), and the approved plan docs/stages/STAGE_03.md (v1.2). Stage 2 is complete (tag stage-2).
+
+Implement SUB-STAGE 3a ONLY (plan Section 7, Step 2): observation and footprint.
+
+Create, in a new folder src/agent/:
+- observation.h: struct Observation exactly as in plan 3.1 (decisionStep, state, lastAction, lastOutcome), with beginner comments.
+- footprint.h / footprint.cpp, implementing plan 3.2 exactly:
+  - computeFootprint(beliefBefore, action, observedAfter, observedOutcome): cells c0, c1, and c2 only under rules (i), (ii), (iii);
+  - compareFootprint(predictedState, predictedOutcome, observedState, observedOutcome, cells): whether the outcomes differ, plus, for each cell in the order c0, c1, c2, which of {wall, agent here, object here} differ, with the predicted and observed values;
+  - computeFootprintForTwoPredictions(...): c2 included if EITHER belief has the object at c1 or EITHER prediction is Pushed (symmetric);
+  - applyFootprintUpdate(belief, cells, observedState): footprint walls (inside the grid only), the agent if the observed agent is in a footprint cell, the object if the observed or believed object is in a footprint cell. Nothing outside the footprint changes.
+  - Cells outside the grid count as walls. Read walls only through isWall or with your own bounds checks; never index the walls array with an unchecked position.
+  - You may choose the names of the small result structs, but keep the four public function names above.
+- tests/test_footprint.cpp covering FP1-FP12 exactly as in plan 6.2:
+  - FP1 uses a fixed, hand-written sequence of 30 actions on the demo layout, including blocked moves and pushes;
+  - FP2-FP9 are one test per row of the protocol's Phase B 10.5 table;
+  - FP10 matching update;
+  - FP11 two-prediction footprint (symmetric);
+  - FP12 outside-grid cells.
+- Register the new files in CMakeLists.txt, tests/test_suites.h, and tests/test_main.cpp.
+
+Rules:
+- Every test world must be valid (isValidWorld); each test checks its fixtures, as in Stage 2. Wrong beliefs are written by hand.
+- Footprint code makes no predictions and uses no budget. Tests may use applyAction to build observed states.
+- Do not change any Stage 1 or Stage 2 code or test. Leave currentStage() returning 2.
+- From the start:
+  - every new file has the three-part header (Purpose / "Introduced in Stage 3" / Architecture) and beginner comments, including the footprint rule and why C1 does not re-check its whole belief every step (plan 9.1);
+  - functions under about 40 lines and files under about 200 lines;
+  - no exceptions, no assertions, no inheritance, no random numbers.
+- Do NOT do the deliberate failure check; the owner will do that.
+- Do not start sub-stage 3b. Do not rename, move, or delete any file, or use refactoring tools on files. Do not touch any file not listed above, and do not edit anything in docs/ (including docs/copilot_prompts/).
+- If anything is unclear, impossible, or seems to disagree with the protocol's Phase B, stop and ask instead of weakening a rule or test.
+
+When finished, rebuild and run the tests (rule 2g), and report the exact result line ("N checks, 0 failures"). Append a handoff note (rule 2f) saying honestly what you actually built and ran. Do not commit.

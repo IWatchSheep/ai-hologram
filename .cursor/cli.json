@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Shell(cmake)",
+      "Shell(ctest)",
+      "Shell(.\\cmake-build-debug\\ai_hologram_tests.exe)",
+      "Shell(.\\cmake-build-debug\\ai_hologram.exe)"
+    ],
+    "deny": [
+      "Shell(git)",
+      "Shell(rm)",
+      "Shell(del)",
+      "Shell(Remove-Item)",
+      "Shell(Move-Item)",
+      "Shell(Rename-Item)",
+      "Write(docs/**)",
+      "Write(.github/**)",
+      "Write(.cursor/**)",
+      "Write(LICENSE)",
+      "Write(.gitignore)"
+    ]
+  }
+}

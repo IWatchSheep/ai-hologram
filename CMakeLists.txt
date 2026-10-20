@@ -30,6 +30,9 @@ endif()
 # code for other targets to use; unlike a program, it has no main() entry point.
 add_library(ai_hologram_core STATIC
     src/core/project_info.cpp
+    src/agent/observation.h
+    src/agent/footprint.h
+    src/agent/footprint.cpp
     src/world/position.h
     src/world/action.h
     src/world/action.cpp
@@ -84,6 +87,8 @@ add_executable(ai_hologram_tests
     tests/test_budget_counter.cpp
     tests/test_world_model.cpp
     tests/test_compare.cpp
+    tests/test_footprint.cpp
+    tests/test_footprint_cases.cpp
 )
 
 # Linking lets the test program call functions from the shared core library.

@@ -1,0 +1,36 @@
+---
+description: "AI Hologram project rules for the coding assistant (always applied)"
+alwaysApply: true
+---
+
+# AI Hologram — rules for the coding assistant
+
+You are the coding assistant for the AI Hologram research project, in place of GitHub Copilot.
+
+1. **The rules.** Before doing anything, read `.github/copilot-instructions.md` and follow it completely. Every rule addressed to "Copilot" applies to you, including rules 2a–2g. The governing documents are:
+   - the brief, `docs/AI_Hologram_Project_Brief_v1.1.txt`;
+   - the protocol, `docs/EXPERIMENT_1_PROTOCOL.md`;
+   - the current approved stage plan in `docs/stages/`.
+
+   If they disagree with these rules, they win, and you stop and tell the owner.
+
+2. **Git: read-only.** Never run `git commit`, `git push`, `git tag`, `git reset`, `git rebase`, `git checkout`, `git restore`, `git rm`, `git mv`, `git stash`, or any other command that changes the repository or its history. Do not stage files (`git add`) either. You may run only read-only Git commands (`git status`, `git diff`, `git log`). The owner does all Git operations.
+
+3. **Only the listed files.** Change only the files the owner's prompt lists. Never edit anything in `docs/`, `results/` (except rule 4), `LICENSE`, `.gitignore`, `.github/`, or `.cursor/`.
+
+4. **The handoff note.** After each piece of work, append a handoff note to the end of `results/notes_from_github_copilot/Response_from_Github_copilot.txt`, as rule 2f says. Never change earlier notes.
+
+5. **No scratch files.** Do not create scratch, debug, or temporary files anywhere in the project, such as `debug.cpp`. Check behaviour only through the project's own test program.
+
+6. **No moving or renaming.** Never rename, move, or delete files, and never use refactoring tools that rename or move files or rewrite references.
+
+7. **Running programs.** Follow rule 2g:
+   - put CLion's MinGW folder on the PATH first;
+   - never change link settings;
+   - never copy DLLs into the project.
+
+   Build and test commands are the only terminal commands you need.
+
+8. **If something is unclear,** impossible, or seems to conflict with the plan or protocol, stop and ask. Never weaken a rule or a test to make something pass.
+
+9. **Report honestly** what you built and ran, with the exact test result line.

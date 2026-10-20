@@ -142,3 +142,19 @@ Files changed:
 Build and run results: all project targets rebuilt successfully with no compiler warnings. The test executable reported `80 checks, 0 failures`; CTest passed `correctness_tests` (1/1). `ai_hologram` ran, and its complete 56-line output matched plan Section 5.5 line by line. The demos each used five model evaluations; demo 1 reported zero mismatches and demo 2 reported one mismatch. Use **Build → Build Project** before running CTest.
 
 The invalid-layout and unavailable-prediction paths were not exercised; the fixed layouts are valid and each budget limit is 10 for five actions. No plan conflict or other uncertainty was found. Nothing was committed.
+
+=== 2026-10-19 — Sub-stage 3a and follow-up 1 ===
+
+Original sub-stage 3a (already present, uncommitted, at the start of this follow-up):
+- `src/agent/observation.h` defines `Observation` exactly as in plan 3.1.
+- `src/agent/footprint.h` and `src/agent/footprint.cpp` implement plan 3.2: `computeFootprint` (c2 only under rules (i), (ii), (iii)), `compareFootprint`, `computeFootprintForTwoPredictions` (symmetric), and `applyFootprintUpdate` (nothing outside the footprint changes; outside-grid cells count as walls through `isWall`). That code was not changed in this follow-up.
+- `tests/test_footprint.cpp` was created, and the footprint files and test group were registered in `CMakeLists.txt`, `tests/test_suites.h`, and `tests/test_main.cpp`.
+
+Follow-up 1 (this work) — test rewrite only:
+- Rewrote `tests/test_footprint.cpp` (190 lines): all fixtures now start from the Stage 1 demo layout D parsed with `parseWorld` (agent (3, 3), object (5, 3), destination (8, 3), walls (4, 6) and (5, 6)); FP1 applies the exact 30-action sequence and checks belief == true state after every footprint update plus the 23 Moved / 3 Pushed / 4 Blocked counts; FP10, FP11 and FP12 are the exact cases specified.
+- Split the file as the prompt allows: FP2-FP9 moved to the new `tests/test_footprint_cases.cpp` (191 lines), registered in `CMakeLists.txt` (the only other file changed). Every FP2-FP9 fixture is checked with `isValidWorld` via `check()`, predicted states come from `applyAction(belief, action)` and observed states from `applyAction(trueState, action)`, and each case checks the exact footprint cells, both outcomes, the exact number of differing cells, and every listed (wall, agent here, object here) flag for the predicted and observed states.
+- No other file was changed in this follow-up; in particular `src/agent/footprint.h`, `src/agent/footprint.cpp`, and `src/agent/observation.h` are untouched. No scratch or debug files were created.
+
+Build and run results: rebuilt with CLion's CMake/MinGW with no compiler warnings. With CLion's bundled MinGW directory on `PATH` (rule 2g), the test executable reported `158 checks, 0 failures`; CTest passed `correctness_tests` (1/1). The `ai_hologram` program was not run, as this follow-up changes tests only. Use **Build → Build Project** in CLion before running CTest.
+
+No expected value in the follow-up prompt was found to be wrong, and no plan or protocol conflict was found. The deliberate failure check was not performed. Nothing was committed.
