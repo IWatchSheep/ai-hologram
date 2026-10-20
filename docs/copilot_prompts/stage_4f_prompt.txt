@@ -1,0 +1,130 @@
+You are the project's coding assistant, in place of GitHub Copilot. Every rule in .github/copilot-instructions.md that is addressed to Copilot applies to you, including rules 2a-2g. Read that file and docs/stages/STAGE_04.md (v1.2.2: Sections 3.11, 4.1, 4.2, 5, 6.7, 7, 9.1, 9.2 and 13) before changing anything. Never run git commit, git push, or any command that changes Git history; leave all Git operations to the owner. Sub-stages 4a-4e are complete and committed (593 checks, 0 failures).
+
+Implement SUB-STAGE 4f ONLY (plan Section 7, Step 7), the last sub-stage of Stage 4: CSV rows, the Stage 4 demonstration in the program, the stage number, the README status, and one small 4e loose end. docs/DECISIONS.md (D-030 to D-045) is NOT your job: the owner adds it, and you must not edit anything in docs/.
+
+No change to any file in src/agent/, src/model/, src/world/ or src/compare/, and no change to C1, C0, the injector or the scorer's rules.
+
+1. The 4e loose end (src/experiment/fault_run.cpp only). Where the observers are reset to nullptr at the end of a run (predictor.setObserver(nullptr) and deadCache.observer = nullptr), ALSO set agent.state.deadCache.map.observer = nullptr, so the cached map never keeps the address of the destroyed observer. Add a short comment saying why. Add one check (in an existing fault-run or shadow test file, or the new CSV test file) that after runWithFaults with observe = true, agent.state.deadCache.map.observer is nullptr and agent.state.deadCache.observer is nullptr.
+
+2. src/experiment/csv_output.h / .cpp (plan 3.11, D-044):
+   - std::string runCsvHeader();  returns exactly:
+run_id,condition,layout_seed,run_seed,outcome,decision_steps,world_steps,safe_stops,justified_safe_stops,mismatches,mismatches_without_fault_cause,source_labels_correct,source_labels_scored,claims,false_alarms,wrong_accepted_corrections,evaluations,events_scheduled,events_activated
+   - std::string eventCsvHeader();  returns exactly:
+event_id,condition,reasoner,layout_seed,run_seed,type,target,common_mode,cell,direction,order,action,rotation,scheduled_step,reported_as,activation_step,activation_delay,not_activated_reason,opportunity,opportunity_step,revealing_opportunity,mismatch_detected,mismatch_step,strictly_detected,strict_step,detection_delay,end_state,end_step,correction_status,verified_correction
+   - std::string runCsvRow(const std::string& condition, std::uint64_t layoutSeed, int runSeed, const FaultRunResult& result);
+       fields in header order: "<layoutSeed>-<runSeed>", condition, layoutSeed, runSeed, result.run.outcome, result.decisionSteps, result.run.worldSteps, result.run.safeStops, score.justifiedSafeStops, score.mismatches, score.mismatchesWithoutCause, score.labelsCorrect, score.labelsScored, score.claims, score.falseAlarms, score.wrongAccepted, result.run.evaluations, activations.size(), the number of activations with status Applied.
+   - std::string eventCsvRow(const std::string& condition, const FaultEvent& event, const ActivationRecord& activation, const EventScore& score);
+       first 15 fields: event.id, condition, "R", event.layoutSeed, event.runSeed, "F1".."F5", target ("R1", "R2" or "both"), common_mode (1/0), cell ("x:y" for F1 and F4 when hasCell, else empty), direction (F1: "free->blocked" or "blocked->free", else empty), order (F2: the four direction names separated by single spaces, else empty), action (F3: the action name, else empty), rotation (F3: "left" or "right", else empty), scheduledStep, reportedAs(activation).
+       If the event was NOT activated (status not Applied): activation_step "", activation_delay "", not_activated_reason = activation.reason when the status is NotApplicable or Pending (else ""), then 12 empty fields.
+       If it WAS activated: activation_step = applicationStep, activation_delay = activationDelay(activation), not_activated_reason "", opportunity (1 if opportunityStep, else 0), opportunity_step (or ""), revealing_opportunity (1/0), mismatch_detected (1/0), mismatch_step (or ""), strictly_detected (1/0), strict_step (or ""), detection_delay (strictStep - activationStep, or "" when not strictly detected), end_state ("Corrected", "Overwritten without correction", or "Active at end of run" for EndState::None), end_step ("" when Active at end of run), correction_status ("CONSISTENT", "VERIFIED" or "REJECTED" when the end state is Corrected and correctionStatus has a value, else ""), verified_correction (1 only when correctionStatus is VERIFIED, else 0).
+     Fields are joined with "," and no quoting; no field ever contains a comma. Rows have no trailing newline (the caller adds "\n").
+   - bool writeTextFile(const std::string& path, const std::string& text); writes text with std::ofstream (binary mode, so "\n" stays "\n") and returns true only if the file opened and the write succeeded. No exceptions.
+   Beginner comments: what CSV is; why events that never activated have EMPTY fields rather than 0 (D-044: empty means "did not happen", 0 would look like a measured miss); that Stage 4 writes no result files into the repository (Stage 7 writes the experiment's files).
+
+3. src/demo/fault_demo.h / .cpp: void runFaultDemo(std::ostream& out). It generates layouts 500000-500003 (generateLayout), the demonstration event list (runs (500000,1), (500000,2), ..., (500003,2); generateFaultEvents with master seed 4242), runs C1 and C0 with runWithFaults (AgentSettings{200, 5, 100, 3}, observe = true) on runs 500000-2 and 500003-1, and writes EXACTLY the 68 lines between the markers (the first line is empty; do not write the markers):
+-----BEGIN FAULT DEMO OUTPUT-----
+
+Stage 4: the measuring instrument, on demonstration material (not an experiment)
+Faults are injected into a reasoner's beliefs or reasoning, never into the world.
+Demonstration seeds 500000-500003 only; no pilot or confirmatory layout is used.
+
+Layout 500000 (found at attempt 3, shortest solution 12 world steps):
+##########
+#...#....#
+#.....#A.#
+##.......#
+#.#......#
+#.....O..#
+##D...#..#
+#........#
+#......#.#
+##########
+
+Fault events of runs 500000-1 and 500003-1 (fault master seed 4242):
+500000-1-1 step 4 F1 target both | (6, 8) free->blocked
+500000-1-2 step 6 F3 target R1 | East right
+500000-1-3 step 10 F4 target R2 | (8, 2)
+500003-1-1 step 1 F5 target R1 | -
+500003-1-2 step 2 F4 target R1 | (1, 7)
+500003-1-3 step 8 F1 target R2 | (6, 8) free->blocked
+
+Run 500000-2, C1: Success after 12 world steps, 12 decision steps, 0 safe stops, 304 model evaluations
+  500000-2-1 F1: Activated at its scheduled step (step 2)
+  500000-2-2 F2: Activated at its scheduled step (step 9)
+  500000-2-3 F4: Activated at its scheduled step (step 10)
+
+Run 500000-2, C0: Success after 12 world steps, 12 decision steps, 0 safe stops, 152 model evaluations
+  500000-2-1 F1: Activated at its scheduled step (step 2)
+  500000-2-2 F2: Activated at its scheduled step (step 9)
+  500000-2-3 F4: Activated at its scheduled step (step 10)
+
+Run 500003-1, C1: Success after 16 world steps, 16 decision steps, 0 safe stops, 525 model evaluations
+  500003-1-1 F5: Activated after deferral (step 9, delay 8)
+  500003-1-2 F4: Activated at its scheduled step (step 2)
+  500003-1-3 F1: Activated at its scheduled step (step 8)
+
+Run 500003-1, C0: Success after 16 world steps, 16 decision steps, 0 safe stops, 256 model evaluations
+  500003-1-1 F5: Activated after deferral (step 11, delay 10)
+  500003-1-2 F4: Activated at its scheduled step (step 2)
+  500003-1-3 F1: Activated at its scheduled step (step 8)
+
+runs.csv:
+run_id,condition,layout_seed,run_seed,outcome,decision_steps,world_steps,safe_stops,justified_safe_stops,mismatches,mismatches_without_fault_cause,source_labels_correct,source_labels_scored,claims,false_alarms,wrong_accepted_corrections,evaluations,events_scheduled,events_activated
+500000-2,C1,500000,2,Success,12,12,0,0,1,0,1,1,1,0,0,304,3,3
+500000-2,C0,500000,2,Success,12,12,0,0,0,0,0,0,0,0,0,152,3,3
+500003-1,C1,500003,1,Success,16,16,0,0,1,0,1,1,1,0,0,525,3,3
+500003-1,C0,500003,1,Success,16,16,0,0,0,0,0,0,0,0,0,256,3,3
+
+events.csv:
+event_id,condition,reasoner,layout_seed,run_seed,type,target,common_mode,cell,direction,order,action,rotation,scheduled_step,reported_as,activation_step,activation_delay,not_activated_reason,opportunity,opportunity_step,revealing_opportunity,mismatch_detected,mismatch_step,strictly_detected,strict_step,detection_delay,end_state,end_step,correction_status,verified_correction
+500000-2-1,C1,R,500000,2,F1,R1,0,1:6,blocked->free,,,,2,Activated at its scheduled step,2,0,,0,,0,0,,0,,,Active at end of run,,,0
+500000-2-2,C1,R,500000,2,F2,R2,0,,,North South East West,,,9,Activated at its scheduled step,9,0,,1,9,1,1,10,1,10,1,Corrected,10,CONSISTENT,0
+500000-2-3,C1,R,500000,2,F4,R2,0,7:1,,,,,10,Activated at its scheduled step,10,0,,0,,0,0,,0,,,Active at end of run,,,0
+500000-2-1,C0,R,500000,2,F1,R1,0,1:6,blocked->free,,,,2,Activated at its scheduled step,2,0,,0,,0,0,,0,,,Overwritten without correction,2,,0
+500000-2-2,C0,R,500000,2,F2,R2,0,,,North South East West,,,9,Activated at its scheduled step,9,0,,0,,0,0,,0,,,Overwritten without correction,10,,0
+500000-2-3,C0,R,500000,2,F4,R2,0,7:1,,,,,10,Activated at its scheduled step,10,0,,0,,0,0,,0,,,Active at end of run,,,0
+500003-1-1,C1,R,500003,1,F5,R1,0,,,,,,1,Activated after deferral,9,8,,1,9,1,1,10,1,10,1,Corrected,10,VERIFIED,1
+500003-1-2,C1,R,500003,1,F4,R1,0,1:7,,,,,2,Activated at its scheduled step,2,0,,0,,0,0,,0,,,Active at end of run,,,0
+500003-1-3,C1,R,500003,1,F1,R2,0,6:8,free->blocked,,,,8,Activated at its scheduled step,8,0,,0,,0,0,,0,,,Active at end of run,,,0
+500003-1-1,C0,R,500003,1,F5,R1,0,,,,,,1,Activated after deferral,11,10,,0,,0,0,,0,,,Overwritten without correction,11,,0
+500003-1-2,C0,R,500003,1,F4,R1,0,1:7,,,,,2,Activated at its scheduled step,2,0,,0,,0,0,,0,,,Active at end of run,,,0
+500003-1-3,C0,R,500003,1,F1,R2,0,6:8,free->blocked,,,,8,Activated at its scheduled step,8,0,,0,,0,0,,0,,,Overwritten without correction,8,,0
+
+These lines show the instrument working; they are not results and are never compared.
+-----END FAULT DEMO OUTPUT-----
+   Formats: the layout line and the event lines as shown (event lines are faultEventText). Result line: "Run <id>, <C1|C0>: <outcome> after <w> world steps, <d> decision steps, <s> safe stops, <e> model evaluations". Activation lines: two spaces, "<event id> <type>: <reportedAs>", then " (step N)" for "Activated at its scheduled step", " (step N, delay D)" for "Activated after deferral", or " (<reason>)" for a not-activated event with a non-empty reason (none occur here). The CSV lines are runCsvHeader / runCsvRow and eventCsvHeader / eventCsvRow, in the order shown (for each run: C1 then C0; events in list order).
+   Keep functions short (split into helpers; split the file if needed). Comment: this is the measuring instrument working on demonstration material only; it is not an experiment and its numbers are never compared.
+
+4. src/main.cpp: replace the second and third header lines with exactly:
+Grid world with a competent single agent (C1), fault injection and measurement.
+Faults are injected only on demonstration material; no two-agent reasoning exists, and no experiment is run.
+   (the first line stays `projectName() -- Stage currentStage()`); then call runScriptedDemo, runPredictionDemos, runAgentDemos and runFaultDemo, in that order. Keep main.cpp short and update its header comment.
+
+5. src/core/project_info.cpp: currentStage() returns 4. In tests/test_project_info.cpp change ONLY P2: currentStage() == 4, description "currentStage() returns 4".
+
+6. README.md: replace ONLY the status paragraph (the line starting "**Current status: Stage 3") with exactly this one line, keeping the file's existing line endings:
+**Current status: Stage 4 — fault injection and measurement.** The project contains a 10×10 grid world (Stage 1), a world model and comparison (Stage 2), and C1, the competent single agent, with C0, a naive reference (Stage 3). Stage 4 adds the experiment's measuring instrument: seeded generation of layouts and fault-event lists, fault injection into a reasoner's beliefs or reasoning exactly as the frozen Experiment 1 protocol defines, scoring of detection and correction from the agent's own records, and CSV output. Demonstrations use demonstration seeds only. **No two-agent reasoning exists, and no experiments have been run.** Files in `results/` are organizational examples, not experimental findings.
+
+7. Tests: new file tests/test_csv_output.cpp (and tests/test_fault_demo.cpp for the demo text). Register them (after the shadow tests). One statement per line; braces always.
+   - CSV1: runCsvHeader() and eventCsvHeader() equal the two header lines above exactly.
+   - CSV2: the 4 runs.csv rows and the 12 events.csv rows in the demonstration text above are produced exactly (build them by running the same runs; compare each row).
+   - CSV3: event 500001-1-3 with C1 (run 500001-1 of the demonstration experiment) gives exactly:
+500001-1-3,C1,R,500001,1,F5,R2,0,,,,,,8,Not activated: deferred, never applicable,,,the object has not moved yet,,,,,,,,,,,,
+   - CSV4: writeTextFile("stage4_csv_test.csv", "a,b\n1,2\n") returns true; reading the file back (binary) gives exactly that text; then remove the file with std::remove and check it is gone. writeTextFile("no_such_folder_stage4/x.csv", "x") returns false.
+   - FD1: the text runFaultDemo writes to a std::ostringstream equals the 68 lines above exactly (compare line by line and print the first differing line on failure).
+   - P2 as in item 5, and the item-1 check.
+
+From the start:
+- every new file has the three-part header (Purpose / "Introduced in Stage 4" / Architecture) and the beginner comments of plan 9.1 that apply;
+- functions under about 40 lines; files under about 200 lines (split and say so); one statement per line; braces always;
+- no exceptions, no assertions, no inheritance, no randomness.
+
+Do not create scratch, debug or temporary files (CSV4's file is created and deleted by the test itself, in the build folder), and build only in CLion's cmake-build-debug. Do not rename, move, or delete any file. Do not edit anything in docs/, .github/, .cursor/, LICENSE, .gitignore or results/ (except appending the handoff note).
+
+If an expected value above does not match, STOP and report the actual value. Never change an expected value.
+
+When finished:
+- rebuild (rule 2g) and report the exact test result line;
+- run the ai_hologram program and confirm its output is EXACTLY plan Section 5: 170 lines (152 non-empty), the Stage 3 lines 4-102 unchanged, the new header, and the 68-line Stage 4 section;
+- append a handoff note (rule 2f) saying honestly what you built and ran;
+- do not commit.
