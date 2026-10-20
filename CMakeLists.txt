@@ -110,6 +110,11 @@ add_library(ai_hologram_core STATIC
     src/experiment/scorer_observe.cpp
     src/experiment/shadow.h
     src/experiment/shadow.cpp
+    src/experiment/csv_output.h
+    src/experiment/csv_output.cpp
+    src/experiment/csv_output_event.cpp
+    src/demo/fault_demo.h
+    src/demo/fault_demo.cpp
 )
 
 # Tell this target and its users to search src/ when resolving project headers.
@@ -179,6 +184,8 @@ add_executable(ai_hologram_tests
     tests/test_shadow_sites_more.cpp
     tests/test_shadow_runs.cpp
     tests/test_shadow_runs_demo.cpp
+    tests/test_csv_output.cpp
+    tests/test_fault_demo.cpp
 )
 
 # Linking lets the test program call functions from the shared core library.

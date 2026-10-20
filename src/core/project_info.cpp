@@ -12,7 +12,7 @@ std::string projectName() {
 }
 
 int currentStage() {
-    return 3;
+    return 4;
 }
 
 }  // namespace ai_hologram

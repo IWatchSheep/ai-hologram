@@ -52,6 +52,8 @@ FaultRunResult finishRun(SingleAgent& agent, FaultInjector& injector,
     agent.state.activationHook = std::function<void(int)>{};
     agent.state.predictor.setObserver(nullptr);
     agent.state.deadCache.observer = nullptr;
+    // The cached map must not keep the destroyed observer's address.
+    agent.state.deadCache.map.observer = nullptr;
     scorer.finish(viewOf(agent.state));
     FaultRunResult result;
     result.run = buildRunResult(outcome, worldSteps, agent.safeStopCount(),
@@ -74,6 +76,8 @@ FaultRunResult finishRun(NaiveAgent& agent, FaultInjector& injector,
     agent.state.activationHook = std::function<void(int)>{};
     agent.state.predictor.setObserver(nullptr);
     agent.state.deadCache.observer = nullptr;
+    // The cached map must not keep the destroyed observer's address.
+    agent.state.deadCache.map.observer = nullptr;
     scorer.finish(viewOf(agent.state));
     FaultRunResult result;
     result.run = buildRunResult(outcome, worldSteps, 0, 0, 0, 0,

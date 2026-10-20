@@ -40,5 +40,7 @@ void runShadowSiteTests(TestCounter& counter);
 void runShadowSiteMoreTests(TestCounter& counter);
 void runShadowRunTests(TestCounter& counter);
 void runShadowDemoTests(TestCounter& counter);
+void runCsvOutputTests(TestCounter& counter);
+void runFaultDemoTests(TestCounter& counter);
 
 }  // namespace ai_hologram
