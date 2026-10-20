@@ -1,0 +1,123 @@
+AI Hologram -- Stage 3 owner's gate: my 11 observations, in my own words
+=======================================================================
+
+Owner: IWatchSheep
+Date: 2026-10-20
+
+These are my replies to the 11 learning notes of STAGE_03.md Section 11, exactly as I
+wrote them while going through each note with Claude.
+
+My starting description:
+"the temporal-spatial witness, and the spatial agent, they both share common relative
+views of both types [(temporal-spatial), (spatial)], and they function together the
+spatial doing the job and the temporal-spatial helping the spatial do their job. As a
+result they branch into each other and so from a relative perspective spatial can see
+from the spatial on zero number line temporal-spatial = greater than zero, and since
+temporal-spatial has reference to spatial they also have a common zero relative
+position that goes to a greater value that is temporal-spatial for them. That being so
+each agent can have sections on them doing these spatial,temporal-spatial
+relationships like eyes, hands, touch, etc, sensory perception."
+
+
+1. C1's decision-step order
+---------------------------
+"for 1, think of a cat the whiskers are like snake tongue. the cat tail works with the
+whiskers on the cat. The enable the cat to be reflexive. If there is no trait like that
+for inspecting errors then there is no reflex, 1 is missing a reflex its just going
+through a list of true false conditions and dumbly agreeing or not based on those
+conditions if you agree then that is a no to agreeing by checking that box."
+
+
+2. The footprint
+----------------
+"2. the footprint, the cat moves as far as the snake can't move. Not limited to a route
+or else the snake will bite the cat even if the cat has reflexes."
+
+
+3. A* and the heuristic
+-----------------------
+"from the two agents, one spatial, adding a temporal-spatial agent to problem solve and
+manage the spatial agent. They have sets of groups of (spatial, + temporal-spatial)
+agents from sensory input. They start from a relative position of zero on the number
+line and add or subtract from that using the other agent via an array of groups of
+(spatial-temporal-spatial) in the senses."
+
+
+4. Budget, cache and reserve
+----------------------------
+"how many predictions from the snake and cat analogy, the cat predicts how to bat its
+paw at the snake from a relative perspective that the paw is a sensory perception that
+has it's own array of groups of (spatial, temporal-spatial) to group together to keep
+the snake at bay and hit the snake and the cat mind uses its array group to help the
+paw and the cat work together like (spatial, temporal-spatial) group problem solving."
+
+
+5. Dead square versus full-state dead end
+-----------------------------------------
+"5 is the idea of the group of (spatial, + temporal-spatial), not blending with the
+temporal-spatial section that extends from the perspective of zero on the number line.
+The cat senses it is being merged into a zero not its own and reflexively like a magnet
+repels that."
+
+"5 the zero is being merged which is a logical error. The zero is there the greater than
+zero is there the two are separate entities and being blocked makes that not true like
+a feral cat being trapped in a house against their will."
+
+
+6. Wrong belief (S2) or wrong model (S1)
+----------------------------------------
+"this is the opposite of 5, that the candy the cat wants as a reward, is a opportunity
+to trade zero locations."
+
+
+7. V1 and V2
+------------
+"feral cats become measure reward to change the bad trade of zero locations to a good
+one to the only one after it became good and memory of being feral fades."
+
+
+8. CONSISTENT versus VERIFIED, and active tests
+-----------------------------------------------
+"does this mean feral cats hearing the food bowl outside being filled and then seeing a
+stranger filling their food bowl and then being cautious then accepting the trade of
+zero cautiously and then seeing their family feast they trade zero happily forgetting
+the stranger who filled their food bowl."
+
+
+9. Safe stops
+-------------
+"this is seeing the zero point they are at is an error and they reference a safe or
+previous zero point that is definitely different from the zero point the danger was at.
+Then this repeats because of habit of repetition or repeatable history then the cat
+sees there is safe ground and unsafe then they keep watch in the unsafe ground to made
+a run for the safe ground when they see trouble. they don't leave the safe ground
+without trust either."
+
+
+10. Why C0 exists
+-----------------
+"the plan uses the spatial agent, for example it might be the temporal-spatial agent,
+either one, then the agent has a list of groups in an array that is its function with
+things like the cat paw vs the snake. Yes the cat might bat at the snake but the snake
+is not the only error. A different danger is there for the cat like mud. Like a third
+party animal or danger. The cat is only employing that one group of (spatial, +
+temporal-spatial) to get candy for instance but they forget they might get candy from a
+stranger and get hurt by something they can't even see that they are in a danger zone
+that zero trust transfer is low trust factor."
+
+"there is a group of(spatial, temporal-spatial), fit for one job. They might be in a
+inner array holding many mini-jobs, inside one larger job, and the larger job is what
+is the danger that affects their result in zero to greater than zero as being effective
+with (spatial, temporal-spatial)."
+
+
+11. Why C1 is frozen after the stage-3 tag
+------------------------------------------
+"this goes into politics. there is peace because of groups, the (spatial) fits next to
+the (temporal-spatial), like pawns on a chess board. But then you add in the rook beside
+the moved pawns at the start of the game, then you move the other pieces until
+logically you win you did nothing but move based on keeping (spatial), next to
+(temporal-spatial), in mini-jobs held by larger jobs, pawns held by rooks and knights,
+all held by king. To win you just have to make the enemy forget the past and live in
+the present like the feral cat forgetting it was once wild and it traded its freedom
+for candy."

@@ -1035,22 +1035,135 @@ One prompt file per sub-stage (`stage_3a_prompt.txt` … `stage_3f_prompt.txt`),
 10. Why C0 exists, and why it never reads observations after the first.
 11. Why C1 must not be changed after the `stage-3` tag except to fix a genuine bug.
 
+**Owner learning notes for review with Claude (added with ChatGPT's assistance; explanations are based on the approved Stage 3 plan).** These explanations are a learning aid, **not** a declaration that the owner has already demonstrated mastery. The owner should check them against the actual implementation and ask Claude about anything that is unclear before checking the owner-understanding item in Section 10.
+
+1. **C1's decision-step order.** C1 receives and stores the complete observation; checks the previous committed prediction; investigates any mismatch and resumes unfinished verification; reaches the deliberately empty Stage 3 fault-activation point; chooses a plan, fallback, cautious action or safe stop; commits and budgets a prediction; then acts. The order matters because yesterday's prediction must be checked against today's observation **before** choosing another action, while the verification and remaining budget determine what can safely happen next. See Sections 3.6–3.9.
+
+2. **The footprint.** For an action, the footprint includes the agent's starting cell, the next cell, and sometimes the cell beyond it when a push or object location makes that relevant. It checks outcomes and the wall/agent/object contents of those cells. Under the unchanged Stage 1 movement rules, no other cells change during that action. Thus, with a correct starting belief and no faults, footprint updates preserve an accurate belief without requiring a full-world comparison at every step. This **does not** mean an existing error outside the footprint will be detected immediately. See Sections 3.2 and 3.13.
+
+3. **A* and the heuristic.** A* searches possible states using `g` (actions taken so far) plus `h` (an estimate of remaining actions). A smaller `g + h` is prioritized, with fixed tie-breaking for reproducibility. For a shortest-plan guarantee, `h` must not **overestimate** the actual remaining cost; the planner also tracks the best `g`, replaces worse routes, handles outdated queue entries, and checks goals on removal from the queue. If the heuristic is distorted by an injected override, the documented guarantee and assumptions need to be considered carefully. See Sections 3.3 and 3.5.
+
+4. **Per-step budget, cache and reserve.** The budget `B` limits charged model evaluations during one decision step and resets on the next. The within-step cache reuses genuinely identical predictions without recalculating them; variant predictions always consume budget. The reserve protects the committed prediction and possible V2 alternatives. Optional search and verification cannot spend those protected evaluations. When insufficient budget remains, C1 defers work or safe-stops; it does **not** act without a committed prediction. See Section 3.4.
+
+5. **Dead square versus full-state dead end.** A dead square is a cell from which the object cannot reach the destination **even with relaxed assumptions** that the agent can always stand where a push requires. A full-state dead end is a specific combination of object position, agent position and walls from which the goal is unreachable. Some full-state dead ends occur on cells that are *not* dead squares because the agent cannot get into position. Therefore an exhausted full-state search alone is not proof that dead-square reasoning was wrong. See Sections 3.3 and 3.7 B.
+
+6. **S2 versus S1 investigation.** After a prediction/observation mismatch, C1 compares the **pre-action belief** on the relevant footprint with the actual recorded pre-action observation. If a wall or object position was already wrong, it proposes a belief-error candidate (S2). If that pre-action belief agrees but the action's predicted result is wrong, it suspects the internal action model (S1). Candidates still undergo verification; a suspicion alone is not a proven correction. See Sections 3.7 A and 3.8.
+
+7. **V1, V2 and time-aware observations.** V1 asks whether a proposed correction explains the appropriate evidence: walls can be compared across all observations because they do not change, but an object's position must be compared with the observation at the **same time** because it can move. An action-model correction is checked by replaying relevant historical transitions with charged evaluations. V2 asks for additional discriminating evidence, such as a later real prediction and observation or the specified budgeted dead-square local test. A proposal should not become VERIFIED solely because it passed V1. See Section 3.8.
+
+8. **CONSISTENT versus VERIFIED; active test.** CONSISTENT means the candidate passed V1 and can be used provisionally. VERIFIED means it subsequently passed V2. A wall correction might remain CONSISTENT because routine actions never test that wall again. After the configured delay, C1 may plan a safe **active test** specifically to make a discriminating observation. Not every proposed correction can or must be actively tested in Stage 3. See Sections 3.6 and 3.8.
+
+9. **Safe stops and their limit.** C1 safe-stops when it cannot choose a demonstrably acceptable action, its investigation must be deferred, its budget is insufficient, or another specified safety condition applies. A safe stop uses a decision step but does not change the world. The limit `S_max` prevents endless waiting: reaching it ends the run as **Stopped — unresolved**, not Success. Repeated stops under tight budgets are an important limitation to record rather than silently work around. See Sections 3.4, 3.9 and 3.10.
+
+10. **Why C0 exists.** C0 is the deliberately naive reference for the diagnostic H5 comparison; it uses the same general planning machinery but never checks new observations against predictions and never repairs its belief. It acts on its own predicted state and only searches again after its plan is used up, not because new evidence contradicts it. Unlike C1, it cannot learn from discrepancies encountered during the run. See Section 3.11 and protocol Phase A Section 3.
+
+11. **Protecting C1 after the `stage-3` tag.** C1 is the **precommitted competent baseline** against which the future two-agent design will be judged. Changing C1 after seeing C3's performance would bias the comparison, even if the change seems helpful. After `stage-3`, allow only a genuine, documented bug fix; review its effects, record the decision and rerun all experimental conditions when required by the approved protocol. Do not tag Stage 3 until the completion gate and independent review have passed. See Sections 1, 7, 10 and protocol Phase A Section 3.
+
+**Owner confirmation (complete personally at the final gate):**
+
+- [x] I reviewed these eleven explanations and can explain what C1 does, including its limits, in my own words. (Ticking this box does not mean approving C1's design as sufficient.)
+- [x] I have asked Claude to clarify any part I do not yet understand.
+- [x] I understand that passing tests, demonstrating the software, and proving the Experiment 1 hypothesis are three different milestones.
+
 ---
 
 ## 12. What actually happened (filled in by the owner at the end)
 
 ```
-Date completed:
-Commit tagged stage-3:
-Total number of checks in the final test run (N):
+Date completed: 2026-10-20
+Commit tagged stage-3: the commit that adds this record, made after ChatGPT's
+  completion review (see `git show stage-3`). The last code commit before it is the
+  3f follow-up commit that comes after de083ac.
+Total number of checks in the final test run (N): 353 (0 failures)
 
-Did everything go as planned?  yes / no
-Differences from the plan, and why:
-
-Problems encountered and how they were solved:
-
-Anything learned that should change future stage plans:
+Did everything go as planned?  no -- the agents behave exactly as planned, with small
+  recorded differences in tools, file layout and process, listed below.
 ```
+
+**Result.** C1 and C0 follow Sections 3.1–3.13. The `ai_hologram` output matches 5.5 exactly, all 102 lines including the evaluation counts 19 and 414. This was checked on Windows (CLion, MinGW GCC 15.2.0), and independently by Claude with Linux g++ and all warnings enabled. Every test of Section 6 is present and passes. The fresh-build check passed: cache reset, full rebuild of 60 files, no warnings.
+
+### Differences from the plan, and why
+
+1. **Coding assistant (D-028).** From sub-stage 3a follow-up 1, Cursor (inside CLion) replaced GitHub Copilot, whose credits ran out.
+   - `.cursor/rules/ai-hologram.mdc` and `.cursor/cli.json` were added.
+   - Every rule addressed to Copilot applies to Cursor, and Cursor cannot run Git or write to `docs/`.
+   - So `docs/DECISIONS.md` (D-019 to D-027) was written by Claude and copied in by the owner.
+   - These configuration files are safeguards, not proof of enforcement. The owner still kept control of Git and read every diff before committing.
+2. **Extra files, split for length** (each approved by the owner in its prompt; behaviour unchanged).
+   - **Source:** `planner_fallback.cpp`, `single_agent_check.cpp`, `single_agent_search.cpp` and `single_agent_investigate.cpp`.
+   - **Tests:** `test_footprint_cases.cpp`, `test_dead_squares_cases.cpp`, `test_planner_cases.cpp`, `test_investigation_cases.cpp`, `test_verification_cases.cpp`, `test_verification_trap.cpp`, `test_single_agent_cases.cpp`, `test_single_agent_more.cpp`, `test_single_agent_sp7.cpp`, `test_single_agent_stops.cpp` and `test_agent_demo.cpp`.
+3. **C0's run loop** is a second overload of `runSingleAgent` (same loop, 3.10–3.11), so the fixed name in 4.2 is kept.
+4. **One added test:**
+   - **C1-6c:** repeated "investigation unfinished" safe stops ending a run at S_max. ChatGPT asked for it in the progress review.
+   - **AD1** checks the agent-demo text inside the test program.
+5. **Size exceptions (recorded reasons):**
+   - **`planner.cpp`, 230 lines.** Mostly beginner comments; splitting it would scatter the A* algorithm. ChatGPT accepted this in the progress review.
+   - **`tests/test_planner.cpp`, 205 lines.**
+   - **`tests/test_world_text.cpp`, 237 lines** (recorded in Stage 1).
+   - **`computeDeadSquares`, 49 lines.** 10 of them are comments, leaving 39 lines of code.
+   - Some test functions exceed 40 lines because they hold lists of exact expected lines.
+6. **Small duplication:** the 4-line helper `footprintOf` exists in both `single_agent_check.cpp` and `single_agent_investigate.cpp` after the last split.
+
+### Problems encountered and how they were solved
+
+- **Copilot's 3a tests** used invalid fixtures and left a scratch `debug.cpp`. A follow-up with exact fixtures fixed them, and the scratch file was deleted.
+- **CLion's "move file"** silently rewrote a file name in 9.5 of this plan. It was restored in `46c5598`, and files are now copied with File Explorer.
+- **Planner (before any code).** ChatGPT showed that v1.0's planner was not guaranteed shortest. It was corrected to a standard A* in plan v1.1, and the counts changed from 17 and 401 to 19 and 414.
+- **Deliberate failure checks (Brief L7):**
+  - **3a (footprint rule iii):** exactly FP7 failed.
+  - **3c (letting the planner spend the reserve):** exactly the four PL4/PL5 checks failed.
+  - **3d (object correction compared with the oldest observation):** at first **no test failed**. VF1 passed only the last two observations, so the time-aware rule was not really tested. A follow-up fixed VF1; the repeated failure check then made exactly VF1 fail. This weakness and its fix are kept on record.
+  - Each edit was undone, and everything passed again.
+- **3e:** the first version tested only one "investigation unfinished" safe stop. Follow-up 1 added C1-6c, with exact lines from the reference implementation; the C++ code already behaved correctly.
+- **3f:** five functions were clearly over 40 lines, the longest being C1's main choice at 77 lines.
+  - Follow-up 1 split them, with no change in behaviour (353 checks and exact output unchanged).
+  - That first split met the file limit by joining statements onto shared lines, which hurt readability. Follow-up 2 undid this and moved three helpers into `single_agent_investigate.cpp` instead.
+- **An untested branch, honestly stated.**
+  - **What it is:** `trapV2Test` skips a hypothetical state that is not a valid world, as 3.8 requires.
+  - **Why it cannot happen:** the object cell p is not a wall and not on the border. The standing cell b is checked to be free, and b ≠ p. Nothing else changes from a valid belief, so every hypothetical is valid.
+  - **What the tests show:** the branch is **not claimed as tested**. VF10 checks only that no invalid hypothetical was reached (anomalies = 0).
+- **Cautious mode at small budgets (observation, not changed).**
+  - **What happens:** by the approved budget order (3.4, Phase B 11.7), unfinished model-V1 replays use the budget down to the reserve before cautious checks. While V1 work is unfinished, C1 can therefore safe-stop repeatedly and reach S_max. C1-6c shows this.
+  - **What follows:** following ChatGPT's progress review, the order is kept. This is an input to the Phase C choice of B and S_max, checked by pilots under the Phase A rules, and never tuned to favour any condition.
+
+### Anything learned that should change future stage plans
+
+1. **Exact expected values from an independent reference implementation** caught every mistake that tests could catch. They also made the late refactors safe, so keep them for Stage 4.
+2. **Deliberate failure checks find weak tests** (3d), so keep one in every sub-stage that adds core logic.
+3. **Measure function and file lengths at every sub-stage review,** not only at the gate, so that long functions are split while they are being written.
+4. **Prompts should say that line limits must never be met by joining statements or widening lines.**
+5. **Copy files with File Explorer,** never with an IDE's move or refactor feature.
+
+### Owner's observations (recorded at the gate; C1 is not changed)
+
+These describe limits of C1's design as approved in Phase B. They are inputs to Phase C (the two-agent conditions), not changes to the C1 baseline.
+
+How to read them:
+- **They are architectural observations, not technical definitions.** They describe what the owner wants the future spatial agent and temporal-spatial witness to accomplish beyond C1. They do not redefine any term of this plan.
+- **A dead square keeps its precise definition (3.3).** The owner's image of "losing room to act" (observation 5) is an analogy, not a replacement for that definition.
+- **The reserve keeps its definition (3.4):** it protects the committed prediction and the applicable V2 alternatives.
+- **The witness does not simply replace C1's fixed checks.** It should support the spatial agent through overlapping, reciprocal reasoning.
+- **The future architecture is a design hypothesis,** not a result demonstrated by Stage 3.
+- **The owner's exact words** are kept separately, in `docs/stages/STAGE_03_owner_words.txt`.
+
+1. **No reflex.** C1 detects errors only after they happen. It works through a fixed checklist once per decision step (check, investigate, choose, predict, act) and judges by true/false rules. It has no continuous or anticipatory sensing, like a cat's whiskers working together with its tail to sense a wall before touching it. In demo 2, C1 found the wall at (4, 3) only by walking into it.
+2. **Awareness limited to the route.** The footprint checks only the cells along C1's own route. C1 receives the whole grid every step, but does not compare the rest of it with its belief. A change elsewhere, such as a fault outside the route, is noticed only when the route reaches it. Awareness should cover where a danger can reach, not just where the agent is walking: a cat with reflexes is still bitten by a snake it never looked at.
+3. **One perspective in planning.** A* starts from zero and combines a temporal count of steps taken (g) with a spatial estimate of the distance still to go (h). But both come from one perspective, by a fixed formula, without using the history of observations, and with no second agent to check or correct the estimate.
+4. **One central budget, one level.** C1 spends a single pool of B predictions per step through one decision-maker, in a fixed priority order. There are no part-level groups (like a cat's paw) with their own predictions, no whole-level group (like the cat's mind) helping them, and no local reserve kept for a fast reflex response. Its reserve protects only the check of its next action.
+5. **Being trapped is accepted, not resisted.** C1 does not keep its position (zero) and its room to act (greater than zero) as separate quantities. When it is blocked, it accepts being trapped as a fact (full-state dead end, no claim, safe stop). It does not treat the loss of all room to act as a contradiction to resolve, as a feral cat trapped in a house would. Only one narrow case, the consequence surprise, makes being stuck lead C1 to question its own beliefs.
+6. **Changing reference only when forced.** C1 changes its reference (its belief or model) only when a mismatch forces it to, never by choice toward an opportunity, and it does not weigh the trade. With a single zero, it cannot tell a chosen trade of reference, like a cat moving toward a reward, from an imposed merge (observation 5).
+7. **All-or-nothing verification, no fading.** C1's verification is a single all-or-nothing event: one confirming prediction makes a fix VERIFIED permanently. There is no gradual trust built from repeated, measured confirmations, by which a change that began as a bad trade becomes the good and only reference, like a feral cat becoming tame. Old observations never fade; every one of them counts fully, forever.
+8. **Confirmation only through its own experience.** C1 can confirm a fix only through its own experience: a later prediction of its own, or an active test it carries out itself (and only for walls). It cannot confirm by watching another's experience, as a cautious feral cat accepts food from a stranger after seeing its family feast safely.
+9. **Freezing instead of retreating.** C1's safe stop freezes the agent at the point where the trouble arose. It does not retreat to a known safe earlier position, does not learn from repeated history which ground is safe and which is unsafe, keeps the same vigilance everywhere, and leaves a safe position whenever it has one checked prediction, without first building trust. A cat recognises the danger point as the error, runs back to safe ground, keeps watch on unsafe ground, and leaves safe ground only with trust.
+10. **Fixed on one goal, blind to other dangers.** C0 pursues one goal with one plan and sees nothing else. C1 is better but still narrow: it checks only along its route, and only for the kinds of error it was built to know (walls, the object, its action model, dead squares). An "unexplained" surprise (S5) is logged and the belief updated, but it does not make C1 suspect a danger zone or lower its trust. A cat chasing candy with one group can miss the mud or a third animal, and take candy from a stranger in a zone where trust should be low.
+    - **Nested jobs:** groups are fitted to jobs that nest, with mini-jobs inside larger jobs. A mini-job's success must be measured by its real effect on the larger job, not by its own completion. C0 completed every step of its plan in its own frame while making zero real progress. C1 checks each step's real effect, but has only two levels (step and goal), with no nesting.
+11. **The experiment must not forget its past.** Winning can come from making the other side forget its past and live only in the present, as the feral cat forgot it was wild and traded its freedom for candy. The `stage-3` tag, and the rule that Git history is never rewritten, protect the experiment against this: the baseline's past cannot be quietly changed to manufacture a result.
+
+**Owner confirmation (completed personally before the completion commit):**
+
+- [x] I read this record, and it matches what happened.
+- [x] The Section 10 gate is passed.
+- Owner / date: IWatchSheep (owner), 2026-10-20 — confirmed after going through all 11 learning notes with Claude.
 
 ---
 
@@ -1080,3 +1193,4 @@ Anything learned that should change future stage plans:
 | 1.0 | 2026-10-19 | First draft by Claude after protocol Phase B was approved (commit `da9af19`). Implements Phase B Section 11 (C1 and C0) with the definitions of Sections 10 and 12, in six sub-stages, with tests covering every item of Phase B 12.9 and ChatGPT's list for this plan (6.10). The exact expected output (5.5) was produced by a reference implementation of this plan written by Claude in Python; that implementation also found one gap, the belief update after a suspected action-model error, now fixed by D-025. Decisions D-019 to D-027 interpret Phase B where it leaves choices open. For independent review by ChatGPT and approval by the owner. |
 | 1.1 | 2026-10-19 | ChatGPT reviewed v1.0, supported the Stage 3 architecture, and requested two corrections. **(1) Planner (3.5, D-020):** v1.0 marked states visited when created and accepted the goal when generated, which is not guaranteed shortest. It is now a standard A*: best *g* per state, path replacement and reopening, outdated entries skipped, goal accepted when taken from the queue, and tie-breaking documented. Its consistency (and so admissibility) is argued in 3.5. The reference implementation was rerun: its plans matched exhaustive breadth-first search lengths on all 3,000 random layouts, against 86 longer plans from the v1.0 rule. PL2 now includes such a layout (9 versus 11 actions) and a path-replacement case. **The expected output (5.5) was regenerated; the step lines are unchanged, and the evaluation counts changed from 17 and 401 to 19 and 414.** PL1 now expects 16 evaluations. **(2) Reserve (3.4, 3.6–3.9, D-021):** the reserve is defined as the committed prediction plus the V2 alternatives. Every optional evaluation (investigation re-prediction, V1 replays, trap V2, cautious checks, active-test search, main search) must keep it, with the behaviour of each when it cannot. C1 never takes a world action without a committed prediction, and safe-stops with a logged reason instead. New log lines (5.3) and tests SP7 (several pending V2 corrections, every B from 1 to 11; checked in the reference implementation) and C1-11. **D-024** is accepted as a documented simplification, and its F4 limitation is kept (5.6, D-024). No other change; existing tests and comment requirements kept. Not approved. |
 | 1.2 | 2026-10-19 | **APPROVED.** ChatGPT approved version 1.1 for implementation, and the owner approved it. ChatGPT accepted the evaluation counts 19 and 414 as reference-output expectations, not as independently verified C++ results, and asked that a test be kept for the object already on the destination. Added accordingly: **PL10** (the planner returns Found with an empty plan and 0 evaluations, despite a non-zero heuristic). Checking that case in the reference implementation showed two situations the plan did not yet state, now specified: the run ends with Success after 0 world steps if the object starts on the destination (3.10), and C1 safe-stops with `belief shows goal reached` if its search returns an empty plan while the run has not ended (3.6; new log line 5.3; test **C1-12**). The expected output (5.5) is unchanged; the reference implementation confirmed it. No other change. |
+| 1.2 (record) | 2026-10-20 | Section 12 filled in at Stage 3 completion. Owner learning notes, written with ChatGPT's help, added after the unchanged Section 11 list. The approved plan itself (Sections 1–11 and 13) is unchanged. |
