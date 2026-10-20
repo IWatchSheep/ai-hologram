@@ -5,6 +5,7 @@
 // Architecture: decide() follows plan 3.6 step by step. C1 never reads
 // Environment; it knows the world only through Observations, and every
 // prediction goes through state.predictor (the StepPredictor).
+// Stage 4 IE-1 H1 adds the activation-hook calls in decide() below.
 
 #include "agent/single_agent.h"
 #include "agent/agent_log.h"
@@ -139,13 +140,24 @@ Decision SingleAgent::decide(const Observation& observation) {
     if (state.decisionStep != 1) {
         state.history.push_back(observation);
     }
-    if (state.committed.has) checkCommitted(observation);       // step 2
-    if (const auto stopped = retryDeferred()) return *stopped;  // step 3
-    continuePendingWork();                                      // step 3
-    // Step 4 in the prompt's order (fault activation point in plan 3.6):
-    // EMPTY in Stage 3. Stage 4 would apply scheduled faults here, after
-    // the check and investigation and before planning; no fault code
-    // exists yet, so this step deliberately does nothing.
+    if (state.committed.has) checkCommitted(observation);  // step 2
+    if (const auto stopped = retryDeferred()) {             // step 3
+        // A step that ends early in step 3 still has its activation
+        // point; otherwise an event scheduled for that step would
+        // never be tried (plan 3.6, IE-1 H1).
+        if (state.activationHook) {
+            state.activationHook(state.decisionStep);
+        }
+        return *stopped;
+    }
+    continuePendingWork();  // step 3
+    // Step 4: the fault activation point (protocol 11.3 step 4; plan
+    // 3.6, IE-1 H1). Empty except in a run with faults, when the
+    // experimenter's fault injector is called here once per step,
+    // after step 3 and before planning. The agent reads nothing back.
+    if (state.activationHook) {
+        state.activationHook(state.decisionStep);
+    }
     return chooseAndCommit();  // steps 5-7 in the prompt's order
 }
 

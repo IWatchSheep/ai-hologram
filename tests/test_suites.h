@@ -29,5 +29,7 @@ void runLayoutGeneratorTests(TestCounter& counter);
 void runLayoutGeneratorSetTests(TestCounter& counter);
 void runFaultEventTests(TestCounter& counter);
 void runFaultEventSetTests(TestCounter& counter);
+void runFaultInjectorTests(TestCounter& counter);
+void runFaultRunTests(TestCounter& counter);
 
 }  // namespace ai_hologram

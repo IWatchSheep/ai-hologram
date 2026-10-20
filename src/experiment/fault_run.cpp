@@ -1,0 +1,157 @@
+// Purpose: Implements the run with faults for C1 and C0 (plan 3.6):
+// the Stage 3 run loop, written again here, plus the true history,
+// the connected fault injector, and the activation records.
+// Introduced in Stage 4.
+// Architecture: This is experimenter code in src/experiment/. The
+// RunResult lines are built exactly as run_loop.cpp builds them, with
+// the same agent_log.h line functions. The true world is changed
+// only through Environment, exactly as in the Stage 3 loop.
+
+#include "experiment/fault_run.h"
+
+#include "agent/agent_log.h"
+#include "world/environment.h"
+
+#include <functional>
+#include <utility>
+#include <vector>
+
+namespace ai_hologram {
+namespace {
+
+// Builds a result from the outcome and the counted facts of a run,
+// exactly as run_loop.cpp does: the log lines, then the four result
+// lines of plan 5.3.
+RunResult buildRunResult(const std::string& outcome, int worldSteps,
+                         int safeStops, int mismatches, int corrections,
+                         int verified, int evaluations,
+                         std::vector<std::string> lines) {
+    RunResult result;
+    result.outcome = outcome;
+    result.worldSteps = worldSteps;
+    result.safeStops = safeStops;
+    result.mismatches = mismatches;
+    result.corrections = corrections;
+    result.verified = verified;
+    result.evaluations = evaluations;
+    result.lines = std::move(lines);
+    result.lines.push_back(resultLine(outcome, worldSteps, safeStops));
+    result.lines.push_back(mismatchesLine(mismatches));
+    result.lines.push_back(correctionsLine(corrections, verified));
+    result.lines.push_back(evaluationsLine(evaluations));
+    return result;
+}
+
+// Empties C1's hook first, so the agent is never left pointing at a
+// destroyed injector, then finishes its run exactly as run_loop does.
+FaultRunResult finishRun(SingleAgent& agent, FaultInjector& injector,
+                         const std::string& outcome, int worldSteps) {
+    agent.state.activationHook = std::function<void(int)>{};
+    FaultRunResult result;
+    result.run = buildRunResult(outcome, worldSteps, agent.safeStopCount(),
+                                agent.mismatchCount(),
+                                agent.correctionCount(),
+                                agent.verifiedCount(),
+                                agent.totalEvaluations(), agent.logLines());
+    result.decisionSteps = agent.state.decisionStep;
+    result.activations = injector.records();
+    return result;
+}
+
+// The same for C0, whose counts are 0 and which writes no log lines.
+FaultRunResult finishRun(NaiveAgent& agent, FaultInjector& injector,
+                         const std::string& outcome, int worldSteps) {
+    agent.state.activationHook = std::function<void(int)>{};
+    FaultRunResult result;
+    result.run = buildRunResult(outcome, worldSteps, 0, 0, 0, 0,
+                                agent.totalEvaluations(), {});
+    result.decisionSteps = agent.state.decisionStep;
+    result.activations = injector.records();
+    return result;
+}
+
+Observation nextObservation(const WorldState& state, int decisionStep) {
+    return Observation{decisionStep, state, std::nullopt, std::nullopt};
+}
+
+}  // namespace
+
+FaultRunResult runWithFaults(const WorldState& trueInitialState,
+                             SingleAgent& agent,
+                             const AgentSettings& settings,
+                             const std::vector<FaultEvent>& events) {
+    Environment environment(trueInitialState);
+    std::vector<Observation> trueHistory;
+    FaultInjector injector(events, &trueHistory);
+    agent.state.activationHook = [&injector, &agent](int step) {
+        injector.atActivationPoint(partsOf(agent.state), step);
+    };
+    if (trueInitialState.object == trueInitialState.destination) {
+        return finishRun(agent, injector, "Success", 0);
+    }
+    Observation current = nextObservation(trueInitialState, 1);
+    trueHistory.push_back(current);
+    int worldSteps = 0;
+    while (true) {
+        const Decision decision = agent.decide(current);
+        if (!decision.isAction) {
+            if (agent.safeStopCount() >= settings.safeStopLimit) {
+                return finishRun(agent, injector,
+                                 "Stopped -- unresolved", worldSteps);
+            }
+            current = nextObservation(current.state,
+                                      agent.state.decisionStep + 1);
+            trueHistory.push_back(current);
+            continue;
+        }
+        const ActionResult stepped = environment.step(decision.action);
+        ++worldSteps;
+        Observation next{agent.state.decisionStep + 1, environment.state(),
+                         decision.action, stepped.outcome};
+        trueHistory.push_back(next);
+        if (environment.state().object == environment.state().destination) {
+            agent.finalCheck(next);
+            return finishRun(agent, injector, "Success", worldSteps);
+        }
+        if (worldSteps >= settings.maxWorldSteps) {
+            agent.finalCheck(next);
+            return finishRun(agent, injector, "Step limit", worldSteps);
+        }
+        current = next;
+    }
+}
+
+FaultRunResult runWithFaults(const WorldState& trueInitialState,
+                             NaiveAgent& agent,
+                             const AgentSettings& settings,
+                             const std::vector<FaultEvent>& events) {
+    Environment environment(trueInitialState);
+    std::vector<Observation> trueHistory;
+    FaultInjector injector(events, &trueHistory);
+    agent.state.activationHook = [&injector, &agent](int step) {
+        injector.atActivationPoint(partsOf(agent.state), step);
+    };
+    if (trueInitialState.object == trueInitialState.destination) {
+        return finishRun(agent, injector, "Success", 0);
+    }
+    Observation current = nextObservation(trueInitialState, 1);
+    trueHistory.push_back(current);
+    int worldSteps = 0;
+    while (true) {
+        const Decision decision = agent.decide(current);
+        const ActionResult stepped = environment.step(decision.action);
+        ++worldSteps;
+        Observation next{agent.state.decisionStep + 1, environment.state(),
+                         decision.action, stepped.outcome};
+        trueHistory.push_back(next);
+        if (environment.state().object == environment.state().destination) {
+            return finishRun(agent, injector, "Success", worldSteps);
+        }
+        if (worldSteps >= settings.maxWorldSteps) {
+            return finishRun(agent, injector, "Step limit", worldSteps);
+        }
+        current = next;
+    }
+}
+
+}  // namespace ai_hologram

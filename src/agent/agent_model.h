@@ -6,6 +6,7 @@
 // ActionModel the StepPredictor should use from then on. Building
 // that model evaluates nothing; evaluations happen only when the
 // StepPredictor calls the model and charges the step budget.
+// Stage 4 IE-1 H2 adds setBase below (used only by the fault injector).
 
 #pragma once
 
@@ -31,6 +32,11 @@ public:
     void restore(Action action);
     void unrestore(Action action);
     bool isRestored(Action action) const;
+
+    // Replaces the base model and keeps the restored marks. Used only
+    // by the experimenter's fault injector to install a faulty action
+    // model (F3, plan 3.4); agent code never calls it.
+    void setBase(ActionModel model);
 
     // The model to predict with now: the standard rule for restored
     // actions, the base model for all others. The returned model is

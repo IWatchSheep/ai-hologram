@@ -4,6 +4,7 @@
 // Architecture: current() only assembles an ActionModel. It makes no
 // prediction itself, so it spends no budget; the StepPredictor
 // charges one evaluation each time it calls the assembled model.
+// Stage 4 IE-1 H2 adds setBase below (used only by the fault injector).
 
 #include "agent/agent_model.h"
 #include "world/rules.h"
@@ -47,6 +48,15 @@ void AgentActionModel::unrestore(const Action action) {
 
 bool AgentActionModel::isRestored(const Action action) const {
     return restored_[static_cast<std::size_t>(actionIndex(action))];
+}
+
+void AgentActionModel::setBase(ActionModel model) {
+    // An empty model falls back to the standard rule, exactly as the
+    // constructor does. The restored marks are kept unchanged.
+    if (!model) {
+        model = applyAction;
+    }
+    baseModel_ = model;
 }
 
 ActionModel AgentActionModel::current() const {

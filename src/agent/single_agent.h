@@ -6,6 +6,7 @@
 // Environment), because its belief must be checked through its own
 // predictions, never by looking at the true world directly. Every
 // prediction goes through state.predictor, the StepPredictor.
+// Stage 4 IE-1 H1 adds the activation hook below (fault activation point).
 
 #pragma once
 
@@ -19,6 +20,7 @@
 #include "agent/verification.h"
 #include "model/prediction.h"
 
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -98,6 +100,11 @@ struct SingleAgentState {
     int nextCorrectionId = 1;
     int trapAnomalies = 0;
     std::vector<std::string> log;
+    // The fault activation point (protocol 11.3 step 4; plan 3.6, IE-1 H1).
+    // Empty in every agent run except a run with faults (Stage 4):
+    // then the experimenter's fault injector is called here once per
+    // decision step. The agent never reads anything from it.
+    std::function<void(int)> activationHook;
 };
 
 class SingleAgent {

@@ -4,6 +4,7 @@
 // and dead-square analysis, and every prediction goes through the
 // StepPredictor. It never checks a prediction against an observation,
 // so there is no investigation, correction or safe stop here.
+// Stage 4 IE-1 H1 adds the activation-hook call in decide() below.
 
 #include "agent/naive_agent.h"
 #include "agent/heuristic.h"
@@ -101,6 +102,13 @@ Decision NaiveAgent::decide(const Observation& /*observation*/) {
     // belief, C0's belief drifts from the world and is never noticed.
     ++state.decisionStep;
     state.predictor.startStep();  // a new step budget of B (plan 3.11)
+    // The fault activation point (plan 3.6, IE-1 H1): C0 never checks
+    // or investigates, so its activation point is at the start of its
+    // step, before it plans or takes its next plan action. Empty
+    // except in a run with faults. The agent reads nothing back.
+    if (state.activationHook) {
+        state.activationHook(state.decisionStep);
+    }
     if (state.plan.empty()) {
         // Plans only at the first decision and whenever its plan is
         // used up; executing a plan below makes no new predictions.

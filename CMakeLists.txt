@@ -97,6 +97,11 @@ add_library(ai_hologram_core STATIC
     src/experiment/fault_event.h
     src/experiment/fault_events.h
     src/experiment/fault_events.cpp
+    src/experiment/fault_injector.h
+    src/experiment/fault_injector.cpp
+    src/experiment/fault_apply.cpp
+    src/experiment/fault_run.h
+    src/experiment/fault_run.cpp
 )
 
 # Tell this target and its users to search src/ when resolving project headers.
@@ -150,6 +155,13 @@ add_executable(ai_hologram_tests
     tests/test_layout_generator_sets.cpp
     tests/test_fault_events.cpp
     tests/test_fault_events_sets.cpp
+    tests/test_fault_injector.cpp
+    tests/test_fault_injector_f3.cpp
+    tests/test_fault_injector_more.cpp
+    tests/test_fault_injector_runs.cpp
+    tests/test_fault_run.cpp
+    tests/test_fault_run_demo.cpp
+    tests/test_fault_run_empty.cpp
 )
 
 # Linking lets the test program call functions from the shared core library.

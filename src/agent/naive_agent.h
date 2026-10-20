@@ -6,6 +6,7 @@
 // planner, main heuristic and dead-square analysis. It differs only
 // in what it does with observations: it never reads any observation
 // after the first, so a wrong belief is never noticed or corrected.
+// Stage 4 IE-1 H1 adds the activation hook below (fault activation point).
 
 #pragma once
 
@@ -16,6 +17,7 @@
 #include "agent/single_agent.h"
 #include "agent/step_predictor.h"
 
+#include <functional>
 #include <optional>
 #include <vector>
 
@@ -43,6 +45,11 @@ struct NaiveAgentState {
     std::vector<PlanStep> plan;
     int decisionStep = 0;
     int searches = 0;
+    // The fault activation point (protocol 11.3 step 4; plan 3.6, IE-1 H1).
+    // Empty in every agent run except a run with faults (Stage 4):
+    // then the experimenter's fault injector is called here once per
+    // decision step. The agent never reads anything from it.
+    std::function<void(int)> activationHook;
 };
 
 class NaiveAgent {
