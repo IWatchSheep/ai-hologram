@@ -39,6 +39,13 @@ add_library(ai_hologram_core STATIC
     src/agent/heuristic.cpp
     src/agent/step_predictor.h
     src/agent/step_predictor.cpp
+    src/agent/records.h
+    src/agent/agent_model.h
+    src/agent/agent_model.cpp
+    src/agent/investigation.h
+    src/agent/investigation.cpp
+    src/agent/verification.h
+    src/agent/verification.cpp
     src/agent/planner.h
     src/agent/planner.cpp
     src/agent/planner_fallback.cpp
@@ -102,6 +109,11 @@ add_executable(ai_hologram_tests
     tests/test_dead_squares_cases.cpp
     tests/test_step_predictor.cpp
     tests/test_planner.cpp
+    tests/test_investigation.cpp
+    tests/test_investigation_cases.cpp
+    tests/test_verification.cpp
+    tests/test_verification_cases.cpp
+    tests/test_verification_trap.cpp
     tests/test_planner_cases.cpp
 )
 

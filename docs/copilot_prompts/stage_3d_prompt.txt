@@ -1,0 +1,156 @@
+You are the project's coding assistant, in place of GitHub Copilot. Every rule in .github/copilot-instructions.md that is addressed to Copilot applies to you, including rules 2a-2g. Read that file, the brief docs/AI_Hologram_Project_Brief_v1.1.txt, the protocol docs/EXPERIMENT_1_PROTOCOL.md (Phase B, especially 11.4, 11.5 and 12), and the plan docs/stages/STAGE_03.md (v1.2, especially 3.7 and 3.8) before changing anything. Never run git commit, git push, or any command that changes Git history; leave all Git operations to the owner. Sub-stages 3a, 3b and 3c are committed.
+
+Implement SUB-STAGE 3d ONLY (plan Section 7, Step 5): records, the agent's action model, investigation, and verification. These are building blocks with NO decision loop. They never change a belief themselves: they return results, and sub-stage 3e will apply them. Parts of VF5, VF6 and the cautious-mode and V2 bookkeeping that need the decision step belong to 3e.
+
+1. src/agent/records.h:
+   - enum class SourceLabel { S1, S2, S3, S4, S5 };
+   - enum class CorrectionStatus { Consistent, Verified, Rejected };
+   - enum class ElementKind { Wall, Object, ActionModel, Trap };
+   - struct Element { ElementKind kind; Position cell; Action action; } (cell is used for Wall and Trap; action for ActionModel);
+   - struct CorrectionRecord: id, element, newBlocked, oldBlocked (walls), newPosition, oldPosition (object), status, stepConsistent, tested (plan 3.8);
+   - struct MismatchRecord: decisionStep, action, FootprintComparison differences, candidates, SourceLabel suspected, bool anomaly (plan 3.7).
+   Comment each field for a beginner. S3 and S4 exist in the enum but C1 never uses them (plan 3.7 A.6).
+
+2. src/agent/agent_model.h / .cpp - class AgentActionModel (plan 3.8):
+   - built from a base ActionModel (applyAction if none is given);
+   - restore(Action), unrestore(Action), isRestored(Action);
+   - ActionModel current(): uses the standard rule applyAction for restored actions and the base model for all others;
+   - ActionModel base(), used as the "old model" of a model(a) correction.
+
+3. src/agent/investigation.h / .cpp (plan 3.7):
+   - struct BeliefCandidate { Element element; bool blocked; Position position; };
+   - enum class InvestigationOutcome { BeliefCandidatesConsistent, NoCandidatePassed, ModelSuspected, Deferred };
+   - struct InvestigationResult { InvestigationOutcome outcome; std::vector<BeliefCandidate> candidates; SourceLabel suspected; bool anomaly; };
+   - InvestigationResult investigateMismatch(const WorldState& beliefBefore, Action action, const std::vector<Observation>& history, StepPredictor& predictor, const ActionModel& currentModel, int reserve);
+     - history's last two entries are o_t-1 (before the action) and o_t (after it).
+     - Exactly plan 3.7 A:
+       - Anomaly when the believed agent differs from o_t-1's agent.
+       - Belief candidates from the footprint (computed from beliefBefore, the action and o_t):
+         - walls: each footprint cell whose believed wall differs from o_t-1;
+         - object: when the believed or recorded object is in a footprint cell and they differ; its value is o_t-1's object position, which may lie outside the footprint.
+       - Candidates are verified TOGETHER:
+         - every history check (3.8 V1 table) must pass;
+         - plus ONE variant re-prediction with the CURRENT model, from beliefBefore with all candidates applied, compared on the footprint computed from that corrected belief with o_t.
+         - The re-prediction is optional: if predictor.remaining() <= reserve, return Deferred without predicting.
+       - Suspected source:
+         - S2 when candidates exist;
+         - S1 and ModelSuspected when none exist;
+         - S5 for NoCandidatePassed.
+   - enum class ConsequenceOutcome { NotApplicable, FullStateDeadEnd, Mismatch };
+   - ConsequenceOutcome checkConsequence(const WorldState& belief, const DeadSquareMap& map, const std::vector<Observation>& history, FreeComputationCounts& counts), exactly plan 3.7 B:
+     - for use after an Exhausted main search;
+     - NotApplicable if the object's cell is dead or is the destination;
+     - FullStateDeadEnd if localCheckSaysNotDead is true;
+     - otherwise Mismatch, provided the history check passes (no recorded observation shows the object at p and a later one shows it on the destination); otherwise NotApplicable.
+
+4. src/agent/verification.h / .cpp (plan 3.8):
+   - bool wallHistoryCheck(Position cell, bool blocked, const std::vector<Observation>& history): checks EVERY recorded observation (walls never change).
+   - bool objectHistoryCheck(Position value, const Observation& before): compares ONLY with o_t-1. Time-aware: earlier positions are never compared, because the object moves.
+   - Model V1:
+     - struct ModelV1Work { Action action; std::vector<int> pendingIndices; };
+     - ModelV1Work startModelV1(Action, history): indices k whose lastAction is the action, in history order;
+     - enum class V1Progress { Done, Pending, Failed };
+     - V1Progress continueModelV1(ModelV1Work&, history, StepPredictor&, int reserve):
+       - each replay is predictor.predictVariant(history[k-1].state, action, applyAction), i.e. the STANDARD rule;
+       - each replay must equal history[k].state and history[k].lastOutcome;
+       - it stops (Pending) before a replay if remaining() <= reserve.
+   - bool trapV1Check(belief, map, Position p, history, counts): the local check FAILS at p, and the history check of plan 3.7 B.3 passes.
+   - Trap V2:
+     - enum class TrapV2Result { Verified, Rejected, Waiting };
+     - TrapV2Result trapV2Test(belief, map, Position p, StepPredictor&, const ActionModel& currentModel, int reserve, int& anomalies), exactly plan 3.8:
+       - for each direction N, E, S, W with p-d believed free, build the hypothetical state (belief walls and destination, agent at p-d, object at p);
+       - skip it, and add 1 to anomalies, if it is not a valid world;
+       - predict the push with the CURRENT model, as a variant;
+       - Waiting if remaining() - k < reserve (k = number of valid hypotheticals), making no prediction at all;
+       - Rejected if any predicted push moves the object onto a cell that is not dead; else Verified.
+   - std::optional<Prediction> alternativePrediction(const CorrectionRecord&, const WorldState& belief, Action action, StepPredictor&, const ActionModel& currentModel, const ActionModel& oldModel):
+     - the relevance rules of plan 3.8 (wall cell c: c is c1 or c2; object: the old or current believed position is c1 or c2; model(b): b is the action);
+     - returns std::nullopt WITHOUT any evaluation when not relevant, or when the alternative belief is not a valid world;
+     - wall and object alternatives use the CURRENT model on the belief with the element set to its OLD value;
+     - model alternatives use the OLD model.
+   - bool predictionsDiffer(const Prediction&, const Prediction&): outcome, agent position or object position.
+   - std::vector<std::pair<Position, Action>> activeTestTargets(const WorldState& belief, Position cell): the cells n = cell - d (directions N, E, S, W) that are believed free and not the believed object cell, each with the move d into the cell.
+
+5. Tests: tests/test_investigation.cpp and tests/test_verification.cpp (split further if needed).
+   Fixtures:
+   - D = the Stage 1 demo layout (agent (3, 3), object (5, 3), destination (8, 3), walls (4, 6), (5, 6)), parsed with parseWorld.
+   - History entries are Observations built from applyAction on the TRUE state.
+   - Hand-made models are ActionModels.
+   - Every world must be valid and checked with check().
+   Expected results were checked with the reference implementation of the plan.
+
+   - IV1 (wall missing from belief) - history: o_t-1 = D plus a wall at (4, 3); o_t = the result of East (Blocked). beliefBefore = D. -> candidates [wall (4, 3) blocked]; BeliefCandidatesConsistent; S2; exactly 1 evaluation used.
+   - IV2 (wall wrongly believed at c2) - true = D with the agent at (4, 3); belief = the same plus a wall at (6, 3); action East (observed Pushed). -> candidates [wall (6, 3) free]; consistent; S2.
+   - IV3 (object believed at c1 but not there) - true = D with the agent at (4, 3) and the object at (5, 4); belief = D with the agent at (4, 3); action East (observed Moved). -> candidates [object (5, 4)]; consistent; S2. (5, 4) is outside the footprint: this is also IV8.
+   - IV4 (object at c1 but not believed there) - true = D with the agent at (4, 3); belief = the same with the object at (5, 4); action East (observed Pushed). -> candidates [object (5, 3)]; consistent; S2.
+   - IV5 (wrong action model):
+     - belief = true = D with the agent at (4, 3);
+     - current model: an ActionModel that, when East would push, predicts the object moving NORTH (to (5, 2)) instead;
+     - action East.
+     - -> no belief candidates; ModelSuspected; S1; no evaluation used by investigateMismatch.
+   - IV6 (two belief candidates) - true = D with the agent at (4, 3); belief = the same with the object at (5, 4) AND a wall at (6, 3); action East (observed Pushed). -> candidates [wall (6, 3) free, object (5, 3)], verified together, consistent.
+   - IV7 (no candidate passes):
+     - IV1's history and belief;
+     - current model: an ActionModel under which East always predicts Moved, even into a wall.
+     - -> NoCandidatePassed; S5.
+   - IV9 (anomaly) - beliefBefore = D; history: o_t-1 = D with the agent at (3, 4), o_t = the result of North. -> anomaly true.
+   - Deferral - IV1 with a predictor whose remaining() equals the reserve -> Deferred, with 0 evaluations used.
+   - VF1 (time-aware object V1):
+     - history: o0 = D; o1 = after East (agent (4, 3), Moved); o2 = after East (agent (5, 3), object (6, 3), Pushed); o3 = after East (agent (6, 3), object (7, 3), Pushed);
+     - beliefBefore = o2's state with the object at (6, 4); action East.
+     - -> candidates [object (6, 3)]; consistent - even though o0 and o1 show the object at (5, 3).
+     - objectHistoryCheck((6, 3), o2) is true.
+   - VF2 - objectHistoryCheck((5, 3), o2) is false.
+   - VF3:
+     - wallHistoryCheck((4, 3), true, history) is true when every entry has the wall;
+     - it is false if one recorded observation (even the first) lacks it.
+   - VF4 - history of D with actions East, East, East (Moved, Pushed, Pushed); startModelV1(East) gives indices 1, 2, 3.
+     - With a large budget, continueModelV1 is Done, using exactly 3 variant evaluations; an instrumented current model is NEVER called (the standard rule is used).
+     - If one recorded state is altered by hand (still valid), it is Failed.
+   - VF5 (part) - the same with B = 3 and reserve 1: the first call makes 2 replays and returns Pending; after startStep() the next call makes 1 replay and returns Done.
+   - VF7:
+     - wall correction at (4, 3) with the agent at (3, 3): action East computes an alternative (1 evaluation); action North returns std::nullopt with 0 evaluations;
+     - model correction for East: action East computes one, action West does not.
+   - VF8 (which model) - use instrumented models:
+     - investigateMismatch's re-prediction calls the CURRENT model once;
+     - continueModelV1 never calls the current model;
+     - alternativePrediction for a model correction calls the OLD model and not the current one;
+     - trapV2Test calls the current model.
+   - VF9 (trap claims):
+     - Valid: layout LT below, with a "not dead" override on (1, 1), and the object on (1, 1):
+       - a large-budget main search returns Exhausted;
+       - checkConsequence returns Mismatch;
+       - trapV1Check((1, 1)) is true;
+       - trapV2Test returns Verified, using exactly 2 evaluations (directions North and West; East and South are skipped because (0, 1) and (1, 0) are walls).
+     - Invalid: in D, trapV1Check((5, 3)) is false, and trapV2Test at (5, 3) returns Rejected (East pushes the object onto (6, 3), which is not dead).
+   - VF10 - in the valid VF9 case, both hypothetical states are valid worlds, and anomalies stays 0. The invalid-hypothetical skip cannot be reached from a valid belief with a dead square; if you cannot construct such a case, say so honestly in the handoff note instead of inventing one.
+   - VF11 - layout L2 (from 3c): after the Exhausted search, checkConsequence returns FullStateDeadEnd.
+   - VF12 - in the VF9 valid case the suspected source is S1.
+   - Also test activeTestTargets on D plus a wall at (4, 3): it returns (4, 4) with North, (3, 3) with East, (4, 2) with South; (5, 3), the object cell, is excluded.
+
+   Layout LT (rows y = 0..9):
+     ##########
+     #O.......#
+     #........#
+     #........#
+     #....A...#
+     #........#
+     #........#
+     #.......D#
+     #........#
+     ##########
+
+Register the new files in CMakeLists.txt, tests/test_suites.h and tests/test_main.cpp.
+
+From the start:
+- three-part headers and beginner comments, including why verification must be time-aware for the object, and which model each verification prediction uses (plan 3.8 table);
+- functions under about 40 lines and files under about 200 lines (split and say so);
+- no exceptions, assertions, inheritance or random numbers.
+
+Every evaluation goes through the StepPredictor: predict for the agent's ordinary predictions, predictVariant for everything else here. Never call applyAction or an ActionModel directly to produce a prediction in these files; the standard rule is passed to predictVariant.
+
+Do not change any earlier code or test; leave currentStage() returning 2. Do not create scratch, debug or temporary files, and build only in CLion's cmake-build-debug. Do not rename, move, or delete files. Do not edit docs/ or .cursor/. Do NOT do the deliberate failure check.
+
+If an expected value seems wrong, or anything disagrees with the plan or protocol, stop and report it instead of changing the expectation.
+
+When finished, rebuild and run the tests (rule 2g), and report the exact result line. Append a handoff note (rule 2f) saying honestly what you built and ran. Do not commit.

@@ -1,0 +1,14 @@
+You are the project's coding assistant, in place of GitHub Copilot. Every rule in .github/copilot-instructions.md that is addressed to Copilot applies to you, including rules 2a-2g. Read that file and docs/stages/STAGE_03.md (v1.2, test VF1 in 6.7) before changing anything. Never run git commit, git push, or any command that changes Git history; leave all Git operations to the owner.
+
+Sub-stage 3d follow-up 1 (test VF1).
+
+Sub-stage 3d works (302 checks, 0 failures), but test VF1 does not test what it claims. VF1 must show that a correct object correction passes V1 even though EARLIER observations show the object elsewhere (plan 3.8, the time-aware object check). The 3d prompt asked for the history o0, o1, o2, o3. However, checkVF1AndVF2 in tests/test_verification.cpp calls investigateMismatch with only `lastTwo` = {history[2], history[3]}. o0 and o1, where the object is at (5, 3), are therefore never seen, and a wrong implementation that compared the object with the OLDEST observation would still pass.
+
+Change ONLY that call in checkVF1AndVF2:
+- pass the FULL four-entry history (o0, o1, o2, o3) from eastHistory() to investigateMismatch, instead of lastTwo;
+- remove the lastTwo variable if it becomes unused.
+Keep every expectation and check description exactly as it is. Add a one-line comment saying that the full history is passed on purpose, so that o0 and o1 (object at (5, 3)) are present.
+
+Do not change any other test, any source file, or anything else. Do not create scratch, debug or temporary files, and build only in CLion's cmake-build-debug. Do not rename, move, or delete files. Do not edit docs/ or .cursor/.
+
+When finished, rebuild and run the tests (rule 2g), and report the exact result line; it should still be 302 checks, 0 failures. Append a short handoff note (rule 2f). Do not commit.
