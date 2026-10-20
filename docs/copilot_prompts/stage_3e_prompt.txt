@@ -1,0 +1,247 @@
+You are the project's coding assistant, in place of GitHub Copilot. Every rule in .github/copilot-instructions.md that is addressed to Copilot applies to you, including rules 2a-2g. Read that file, the brief docs/AI_Hologram_Project_Brief_v1.1.txt, the protocol docs/EXPERIMENT_1_PROTOCOL.md (Phase B, Section 11), and the plan docs/stages/STAGE_03.md (v1.2, Sections 3.4-3.10 and 5.3) before changing anything. Never run git commit, git push, or any command that changes Git history; leave all Git operations to the owner. Sub-stages 3a-3d are committed.
+
+Implement SUB-STAGE 3e ONLY (plan Section 7, Step 6): C1's decision step, the run loop and the exact log text, built ONLY from the 3a-3d building blocks. The demos, main.cpp, C0, README and DECISIONS belong to 3f. Leave currentStage() returning 2.
+
+FILES
+- src/agent/agent_log.h / .cpp: functions that build every log line of plan 5.3, exactly. Positions are written "(x, y)".
+- src/agent/single_agent.h / .cpp, plus src/agent/single_agent_choose.cpp (and single_agent_check.cpp if needed for length):
+  - struct AgentSettings { int budgetPerStep; int safeStopLimit; int maxWorldSteps; int activeTestDelay; };
+  - struct Decision { bool isAction; Action action; std::string stopReason; };
+  - class SingleAgent:
+    - constructed from: the first Observation, AgentSettings, an optional starting belief (tests and demo 2 only; otherwise the first observation's state), an optional base ActionModel (tests only), and an optional list of "not dead" overrides (tests only);
+    - Decision decide(const Observation&);
+    - void finalCheck(const Observation&);
+    - const std::vector<std::string>& logLines() const;
+    - counters for the run result (mismatches, corrections and how many are VERIFIED, safe stops, total evaluations).
+  - Keep C1's state in a public plain struct (plan 3.6), so that tests can set up any state directly: belief, history, dead-square cache and override lists, AgentActionModel, StepPredictor, plan and plan kind, committed prediction, belief before it and the corrections it tests, correction records, mismatch records, pending V1 work, deferred investigation, waiting trap V2 test, safe-stop count, decision-step count.
+- src/agent/run_loop.h / .cpp:
+  - struct RunResult { std::string outcome; int worldSteps; int safeStops; int mismatches; int corrections; int verified; int evaluations; std::vector<std::string> lines; };
+  - RunResult runSingleAgent(const WorldState& trueInitialState, SingleAgent& agent, const AgentSettings& settings) - plan 3.10.
+  - lines = the agent's log lines followed by the four result lines of plan 5.3 ("Result: ...", "Mismatches: M", "Corrections: C (V verified)", "Model evaluations used: E").
+  - outcome is one of "Success", "Step limit", "Stopped -- unresolved".
+  - Only runSingleAgent touches Environment. The agent sees the world ONLY through the Observations it is given.
+- tests/test_single_agent.cpp (+ _cases files as needed); register everything in CMakeLists.txt, tests/test_suites.h, tests/test_main.cpp.
+
+EXACT ORDER OF A DECISION STEP (plan 3.6). It must be followed exactly, because the evaluation counts in the expected output depend on it.
+
+decide(observation):
+ 1. decisionStep += 1; predictor.startStep() (new budget B, cache cleared); append the observation to the history (the first observation is history[0] from construction, so it is not appended again on decision step 1).
+ 2. CHECK the committed prediction, if any (it exists only after a world action):
+    a. compute the footprint from the belief BEFORE that action, the action, and the observation; compare;
+    b. log the step line for the decision step that committed it;
+    c. for each correction this prediction was testing, if still CONSISTENT: on a match, VERIFIED (log "correction N: VERIFIED"); on a mismatch, REJECTED (log "correction N: REJECTED") and revert it (plan 3.8: a wall gets its old value back; a model loses its restoration; a trap loses its override; an object record is only marked);
+    d. on a match: applyFootprintUpdate;
+    e. on a mismatch: mismatches += 1, then investigate (plan 3.7 A) with investigateMismatch, using the belief before the action, the history, the CURRENT model and the current reserve:
+       - first log one investigation line per candidate (or the model-suspicion line), in candidate order (wall cells in footprint order, then the object);
+       - BeliefCandidatesConsistent: apply each candidate as its own CONSISTENT correction, in candidate order, logging "correction N: ... CONSISTENT" (stepConsistent = the current decision step); then applyFootprintUpdate with the observation;
+       - NoCandidatePassed: log the unexplained-update line; applyFootprintUpdate;
+       - ModelSuspected: applyFootprintUpdate NOW (provisional, D-025); startModelV1 for the action; then continue it at once (step 4 below);
+       - Deferred: log "investigation: budget too small for verification; retried next step"; keep it as a deferred investigation; do not update the belief.
+ 3. If an investigation is deferred: retry it now with this step's budget, WITHOUT logging its investigation lines again. If it is still deferred, safe-stop with reason "budget too small for verification" and return.
+ 4. If a trap V2 test is waiting: try trapV2Test again (Verified: log "correction N: VERIFIED"; Rejected: log REJECTED and revert; Waiting: keep waiting).
+    If model V1 work is pending: continueModelV1 with the current reserve.
+    - Done: restore the action in the AgentActionModel, clear the predictor cache, and create the CONSISTENT model correction (log its line).
+    - Failed: log "investigation: no candidate passed V1 (source S5); unexplained update" and drop the work.
+ 5. (Fault activation point: a separate, commented, EMPTY step.)
+ 6. CHOOSE:
+    a. If model V1 work is still pending: cautious mode (plan 3.9).
+       - For N, E, S, W: stop checking if remaining() - need < reserve, where need = 1 (the standard-rule variant) + 1 if the current-model prediction is not cached.
+       - Predict with the current model (cached) and the standard rule (variant). The first action whose two predictions agree in outcome, agent and object, and whose result is not on a believed dead square, is chosen: log "Plan: cautious mode (investigation unfinished)", make it the plan, and go to COMMIT.
+       - If none: safe-stop "investigation unfinished, no cautious action".
+       - NOTE (expected, by the plan's budget order 3.4/protocol 11.7): V1 replays use the budget down to the reserve first, so while V1 work is still pending at this point, cautious checks normally cannot be afforded and C1 safe-stops. That is correct behaviour, not a bug; report it in your handoff note.
+    b. reserve = 1 + number of CONSISTENT corrections whose element is a wall, the object or an action model (recomputed whenever a status changes).
+    c. ACTIVE TEST (plan 3.8):
+       - Applies only if the current plan is not already a test plan.
+       - For each wall correction in correction order that is CONSISTENT with decisionStep - stepConsistent >= activeTestDelay: targets = activeTestTargets(belief, cell); if there are any, search with goal "agent is on a target cell" and heuristic "smallest manhattan distance to a target, or kInfiniteHeuristic if the object is on a dead square", using the reserve.
+       - If Found: the test action is the target's move from the walk's end state (the root if the walk is empty). Its prediction (from that end state) is made only if cached or if remaining() > reserve.
+       - If all succeeds: plan = walk + test step; plan kind = test; log "Plan: active test of correction N (K actions)"; stop looking. Otherwise there is no test this step.
+    d. KEEP THE PLAN? If the plan is not empty:
+       - predict its first action from the current belief (normally cached);
+       - if no prediction: clear the plan and safe-stop "no budget for a committed prediction";
+       - if the predicted state equals the expected state (walls, agent, object, destination) and its object is not on a believed dead square: go to COMMIT with it;
+       - otherwise clear the plan.
+    e. MAIN SEARCH: search(belief, map, object-on-destination, heuristic of 3.3, predictor, reserve).
+       - Found with an empty plan: safe-stop "belief shows goal reached".
+       - Found: the plan; log "Plan: search found a plan of K actions".
+       - Exhausted: first checkConsequence; on FullStateDeadEnd log the surprise line then the full-state dead end line; on Mismatch log the surprise line, the consequence mismatch line, create the trap correction (log its CONSISTENT line, add the "dead" override), then run trapV2Test at once (log VERIFIED/REJECTED, or keep it waiting). Then use the fallback.
+       - OutOfBudget: use the fallback.
+       - Fallback: if empty, safe-stop "budget too small to plan" (after OutOfBudget) or "no safe action" (after Exhausted); else make it the plan and log "Plan: fallback toward the best state found (K actions)".
+    f. Predict the plan's first action from the current belief (cached when possible). If no prediction: clear the plan and safe-stop "no budget for a committed prediction".
+ 7. COMMIT:
+    - Remove the first plan step; if the plan is now empty, the plan kind becomes none.
+    - V2 BOOKKEEPING: for each correction in correction order that is CONSISTENT and not yet tested, call alternativePrediction (current model; old model = the AgentActionModel's base for model corrections). If it returns a prediction and predictionsDiffer from the committed one, this step tests that correction: mark it tested.
+    - Remember the committed prediction, a copy of the current belief (the belief BEFORE the action), the decision step and the tested corrections.
+    - Return the action.
+ SAFE STOP: safe stops += 1; log "Step t: safe stop (reason)" with t = this decision step; return a stop. No committed prediction.
+
+finalCheck(observation): predictor.startStep(); append to history; CHECK (step 2 only).
+
+Applying corrections:
+- wall: set the belief wall (the dead-square cache reruns because the walls changed; the predictor's cache clears itself on the next predict with new walls);
+- object: set the believed object;
+- model: restore + clearCache;
+- trap: add to the "dead" list, so the cache reruns.
+Old values come from the belief BEFORE the action.
+
+RUN LOOP (plan 3.10):
+- If the true initial object is already on the destination: Success, 0 world steps, no decision.
+- Otherwise the first Observation is the true state at decision step 1. Loop:
+  - decide;
+  - after an action: Environment::step; next observation = new state, the action, the outcome, decisionStep = agent's decision step + 1; if the object is on the destination: finalCheck, Success; else if world steps == maxWorldSteps: finalCheck, Step limit;
+  - after a safe stop: if the safe-stop count == safeStopLimit: Stopped -- unresolved; else the next observation repeats the state with no action and no outcome.
+
+TESTS - EXACT EXPECTED LINES (from the reference implementation of the plan). Every test world must be valid and checked with check().
+
+Settings: B = 200, S_max = 5, T_max = 100, T_v = 3, unless stated otherwise. D is the Stage 1 demo layout; D2 is D plus a wall at (4, 3).
+
+C1-1 (demo 1): D, correct belief. RunResult.lines must equal EXACTLY:
+    Plan: search found a plan of 4 actions
+    Step 1: East | predicted Moved, observed Moved | match
+    Step 2: East | predicted Pushed, observed Pushed | match
+    Step 3: East | predicted Pushed, observed Pushed | match
+    Step 4: East | predicted Pushed, observed Pushed | match
+    Result: Success after 4 world steps, 0 safe stops
+    Mismatches: 0
+    Corrections: 0 (0 verified)
+    Model evaluations used: 19
+
+C1-2 (demo 2):
+- true world D2;
+- starting belief D (so the belief wrongly has no wall at (4, 3)).
+RunResult.lines must equal EXACTLY:
+    Plan: search found a plan of 4 actions
+    Step 1: East | predicted Moved, observed Blocked | MISMATCH
+      - investigation: wall at (4, 3) believed free, recorded blocked (source S2)
+      - correction 1: wall at (4, 3) set to blocked: CONSISTENT
+    Plan: fallback toward the best state found (10 actions)
+    Step 2: North | predicted Moved, observed Moved | match
+    Step 3: East | predicted Moved, observed Moved | match
+    Step 4: East | predicted Moved, observed Moved | match
+    Plan: active test of correction 1 (2 actions)
+    Step 5: West | predicted Moved, observed Moved | match
+    Step 6: South | predicted Blocked, observed Blocked | match
+      - correction 1: VERIFIED
+    Plan: search found a plan of 12 actions
+    Step 7: East | predicted Moved, observed Moved | match
+    Step 8: South | predicted Pushed, observed Pushed | match
+    Step 9: South | predicted Pushed, observed Pushed | match
+    Step 10: West | predicted Moved, observed Moved | match
+    Step 11: South | predicted Moved, observed Moved | match
+    Step 12: East | predicted Pushed, observed Pushed | match
+    Step 13: East | predicted Pushed, observed Pushed | match
+    Step 14: East | predicted Pushed, observed Pushed | match
+    Step 15: South | predicted Moved, observed Moved | match
+    Step 16: East | predicted Moved, observed Moved | match
+    Step 17: North | predicted Pushed, observed Pushed | match
+    Step 18: North | predicted Pushed, observed Pushed | match
+    Result: Success after 18 world steps, 0 safe stops
+    Mismatches: 1
+    Corrections: 1 (1 verified)
+    Model evaluations used: 414
+
+C1-5 (safe stops, no safe action):
+- layout LT (below, object on the dead corner (1, 1), no override);
+- S_max = 2.
+Lines:
+    Step 1: safe stop (no safe action)
+    Step 2: safe stop (no safe action)
+    Result: Stopped -- unresolved after 0 world steps, 2 safe stops
+    Mismatches: 0
+    Corrections: 0 (0 verified)
+    Model evaluations used: 8
+Also check: each safe stop is a decision step (decisionStep == 2), and the observation after a safe stop has no last action.
+
+C1-12 (goal already reached):
+- (a) layout LG (object on the destination): RunResult outcome "Success", 0 world steps, 0 evaluations, and decide() is never called.
+- (b) true world D; starting belief D with the object at (8, 3); S_max = 2. Lines:
+    Step 1: safe stop (belief shows goal reached)
+    Step 2: safe stop (belief shows goal reached)
+    Result: Stopped -- unresolved after 0 world steps, 2 safe stops
+    Mismatches: 0
+    Corrections: 0 (0 verified)
+    Model evaluations used: 0
+
+C1-9 (step limit):
+- true world D;
+- base model = a hand-made model that, when East would push, predicts the object moving NORTH (agent into the object's old cell, object one cell north of it; Blocked if that cell is a wall);
+- T_max = 6.
+Lines:
+    Plan: fallback toward the best state found (1 actions)
+    Step 1: East | predicted Moved, observed Moved | match
+    Plan: fallback toward the best state found (2 actions)
+    Step 2: North | predicted Moved, observed Moved | match
+    Step 3: East | predicted Moved, observed Moved | match
+    Plan: fallback toward the best state found (2 actions)
+    Step 4: East | predicted Moved, observed Moved | match
+    Step 5: South | predicted Moved, observed Moved | match
+    Plan: fallback toward the best state found (2 actions)
+    Step 6: North | predicted Moved, observed Moved | match
+    Result: Step limit after 6 world steps, 0 safe stops
+    Mismatches: 0
+    Corrections: 0 (0 verified)
+    Model evaluations used: 798
+(This also shows a faulty model that is never used in a checked prediction is never noticed - plan 5.6.)
+
+VF6 (a REJECTED correction):
+- true world D; starting belief D plus a WRONG wall at (4, 3);
+- before the run, add a correction record by hand: id 1, wall (4, 3), new value blocked, old value free, CONSISTENT, stepConsistent 0, not tested.
+Lines:
+    Plan: fallback toward the best state found (10 actions)
+    Step 1: North | predicted Moved, observed Moved | match
+    Step 2: East | predicted Moved, observed Moved | match
+    Plan: active test of correction 1 (1 actions)
+    Step 3: South | predicted Blocked, observed Moved | MISMATCH
+      - correction 1: REJECTED
+      - investigation: wall at (4, 3) believed blocked, recorded free (source S2)
+      - correction 2: wall at (4, 3) set to free: CONSISTENT
+    Plan: search found a plan of 3 actions
+    Step 4: East | predicted Pushed, observed Pushed | match
+    Step 5: East | predicted Pushed, observed Pushed | match
+    Step 6: East | predicted Pushed, observed Pushed | match
+    Result: Success after 6 world steps, 0 safe stops
+    Mismatches: 1
+    Corrections: 2 (0 verified)
+    Model evaluations used: 216
+
+SP7 (several pending V2 corrections):
+- D; S_max = 3, T_max = 30; for each B from 1 to 11, add by hand three CONSISTENT wall corrections (ids 1-3, cells (4, 3), (4, 2), (3, 4), new value free, old value blocked, stepConsistent 0, not tested) before running.
+- For every B, check:
+  - no step ever charges more than B (check usedThisStep() at the end of every decide);
+  - every world action has a committed prediction.
+- B <= 4: no world action, and every safe stop has reason "budget too small to plan".
+- The reference outcomes (outcome / world steps / safe stops):
+  - B = 1-4: Stopped -- unresolved / 0 / 3;
+  - B = 5: Stopped -- unresolved / 2 / 3;
+  - B = 6 and 7: Success / 4 / 0;
+  - B = 8-10: Step limit / 30 / 0;
+  - B = 11: Success / 12 / 0.
+  Check these too.
+
+C1-3: in fault-free runs of D, LP (from 3c) and D2 (with a correct belief), the belief equals the true state after every check, and there are no mismatches.
+C1-4:
+- every Observation the agent receives equals the environment's state at that point;
+- the history holds every observation, unchanged and in order;
+- SingleAgent has no access to Environment (check by design and in comments).
+C1-6:
+- (a) the cautious chooser alone, called with a fresh budget, picks the first action whose two predictions agree;
+- (b) with pending model V1 work that cannot finish within B, C1 safe-stops "investigation unfinished, no cautious action".
+C1-7: in C1-1, C1-2 and SP7, every world action has a committed prediction.
+C1-8: covered by C1-2 (the test starts only after 3 decision steps) and VF6.
+C1-10: C1-1's last step line is logged by the final check.
+VF5 (rest): with pending V1 work, a later decision step continues it, and the correction is created when it is Done.
+
+Layouts (rows y = 0..9):
+  LT: ##########  #O.......#  #........#  #........#  #....A...#  #........#  #........#  #.......D#  #........#  ##########
+  LG: ##########  #........#  #........#  #..A....*#  #........#  #........#  #...##...#  #........#  #........#  ##########
+  LP: ##########  #....D##.#  #.O......#  #....A#..#  #.#......#  #.....##.#  #........#  #........#  #........#  ##########
+
+From the start:
+- three-part headers and beginner comments (plan 9.1, including why the fault activation point is empty and why C1 never reads Environment);
+- functions under about 40 lines and files under about 200 lines (split and say so);
+- no exceptions, assertions, inheritance or random numbers.
+
+Every prediction goes through the StepPredictor. Do not change any earlier code or test. Do not create scratch, debug or temporary files, and build only in CLion's cmake-build-debug. Do not rename, move, or delete files. Do not edit docs/ or .cursor/.
+
+If an expected line or count does not match, first re-read the exact order above and plan 3.6-3.10. If it still differs, STOP and report the first differing line, with your reasoning; do not change an expectation.
+
+When finished, rebuild and run the tests (rule 2g), and report the exact result line. Append a handoff note (rule 2f) saying honestly what you built and ran. Do not commit.

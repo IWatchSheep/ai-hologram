@@ -21,6 +21,7 @@ int main() {
     ai_hologram::runPlannerTests(counter);
     ai_hologram::runInvestigationTests(counter);
     ai_hologram::runVerificationTests(counter);
+    ai_hologram::runSingleAgentTests(counter);
 
     std::cout << counter.checks << " checks, " << counter.failures << " failures\n";
     return counter.failures == 0 ? 0 : 1;

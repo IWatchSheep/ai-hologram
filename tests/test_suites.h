@@ -21,5 +21,6 @@ void runStepPredictorTests(TestCounter& counter);
 void runPlannerTests(TestCounter& counter);
 void runInvestigationTests(TestCounter& counter);
 void runVerificationTests(TestCounter& counter);
+void runSingleAgentTests(TestCounter& counter);
 
 }  // namespace ai_hologram

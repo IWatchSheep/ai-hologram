@@ -1,0 +1,58 @@
+You are the project's coding assistant, in place of GitHub Copilot. Every rule in .github/copilot-instructions.md that is addressed to Copilot applies to you, including rules 2a-2g. Read that file and docs/stages/STAGE_03.md (v1.2, test C1-6 in 6.8 and the budget order in 3.4) before changing anything. Never run git commit, git push, or any command that changes Git history; leave all Git operations to the owner.
+
+Sub-stage 3e follow-up 1 (test C1-6c: REPEATED safe stops while V1 work is unfinished).
+
+Sub-stage 3e works (337 checks, 0 failures). The independent reviewer asked for a test showing REPEATED safe stops while model V1 work is still unfinished, and how they can end a run. The existing C1-6b test shows only ONE such safe stop before the V1 work finishes. Do not change any source file: the code already behaves correctly (the reference implementation and an independent build give exactly the lines below). Add a test only.
+
+1. Create tests/test_single_agent_stops.cpp, because test_single_agent_more.cpp is already 194 lines. Give it the three-part header (Purpose / "Introduced in Stage 3" / Architecture) and beginner comments. Add a function checkC1_6c(TestCounter& counter). Declare it and call it from runSingleAgentTests in tests/test_single_agent.cpp, after checkRemainingSingleAgent(counter). Register the file in CMakeLists.txt.
+
+2. The setup, run twice, once with S_max = 2 and once with S_max = 5:
+   - The true world is layout D (the Stage 1 demo). Check that it is valid with check().
+   - Make a1 = applyAction(D, East).state, a2 = applyAction(a1, East).state and a3 = applyAction(a2, East).state.
+   - Use settings AgentSettings{2, S_max, 100, 3}, so B = 2.
+   - Construct SingleAgent agent(Observation{1, D, nullopt, nullopt}, settings).
+   - Append three recorded East transitions to agent.state.history:
+     - Observation{2, a1, East, Moved}
+     - Observation{3, a2, East, Pushed}
+     - Observation{4, a3, East, Pushed}
+   - Set agent.state.pendingV1 = ModelV1Work{Action::East, {1, 2, 3}}.
+   - Run it with runSingleAgent(D, agent, settings).
+   Add a comment explaining the setup. The state is prepared by hand because, in normal runs, an action model V1 that cannot finish within the step budget is rare: the planning that leads to many recorded transitions normally costs more than replaying them. The hand-made history consists of real transitions of the standard rule, so every replay passes.
+
+3. Expected result lines, exactly (compare them with the same linesEqual-style helper as the other exact-line tests).
+
+   S_max = 2:
+Step 1: safe stop (investigation unfinished, no cautious action)
+Step 2: safe stop (investigation unfinished, no cautious action)
+Result: Stopped -- unresolved after 0 world steps, 2 safe stops
+Mismatches: 0
+Corrections: 0 (0 verified)
+Model evaluations used: 2
+   Also check that agent.state.pendingV1 still has a value with exactly one pending index left (3), and that East is NOT restored.
+   Check description: "C1-6c: with B = 2, unfinished V1 work gives repeated safe stops ('investigation unfinished, no cautious action') that end the run Stopped -- unresolved at S_max = 2 (one replay per step, the reserve kept)".
+
+   S_max = 5:
+Step 1: safe stop (investigation unfinished, no cautious action)
+Step 2: safe stop (investigation unfinished, no cautious action)
+  - correction 1: action model for East restored to the standard rule: CONSISTENT
+Step 3: safe stop (budget too small to plan)
+Step 4: safe stop (budget too small to plan)
+Step 5: safe stop (budget too small to plan)
+Result: Stopped -- unresolved after 0 world steps, 5 safe stops
+Mismatches: 0
+Corrections: 1 (0 verified)
+Model evaluations used: 3
+   Also check that pendingV1 has no value and that East IS restored.
+   Check description: "C1-6c: with S_max = 5 the V1 work finishes at step 3 and creates the model correction; the reserve then rises to 2, so with B = 2 planning cannot be afforded and the run stops after 5 safe stops".
+
+Rules:
+- Do not change any other test, any source file, or anything else.
+- Every world used must be valid, and the test checks this with check().
+- Functions under about 40 lines (split into helpers if needed).
+- No exceptions, no assertions, no inheritance, no random numbers.
+- Do not create scratch, debug or temporary files, and build only in CLion's cmake-build-debug.
+- Do not rename, move or delete files. Do not edit docs/ or .cursor/.
+
+If an expected line above does not match, stop and report the actual lines instead of changing the expectation or any source file.
+
+When finished, rebuild and run the tests (rule 2g), and report the exact result line. It should be 339 checks, 0 failures if you add one check per run, or say how many checks you added. Append a short handoff note (rule 2f). Do not commit.
