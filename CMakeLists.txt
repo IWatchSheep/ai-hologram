@@ -88,6 +88,12 @@ add_library(ai_hologram_core STATIC
     src/compare/state_difference.cpp
     src/compare/difference_text.h
     src/compare/difference_text.cpp
+    src/experiment/seeded_random.h
+    src/experiment/seeded_random.cpp
+    src/experiment/true_search.h
+    src/experiment/true_search.cpp
+    src/experiment/layout_generator.h
+    src/experiment/layout_generator.cpp
 )
 
 # Tell this target and its users to search src/ when resolving project headers.
@@ -136,6 +142,9 @@ add_executable(ai_hologram_tests
     tests/test_single_agent_stops.cpp
     tests/test_naive_agent.cpp
     tests/test_agent_demo.cpp
+    tests/test_seeded_random.cpp
+    tests/test_layout_generator.cpp
+    tests/test_layout_generator_sets.cpp
 )
 
 # Linking lets the test program call functions from the shared core library.

@@ -1,0 +1,21 @@
+Sub-stage 4a, follow-up 1. You are the same coding assistant, under the same rules as stage_4a_prompt.txt (read it again, with .github/copilot-instructions.md). Never run git commit, git push, or any command that changes Git history. Sub-stage 4a is built (389 checks, 0 failures) and NOT committed. Claude reviewed it: the generator, the search and the layout generator are correct, and every value matches. Make ONLY the two changes below.
+
+1. tests/test_layout_generator.cpp: readability, as already required for this project (one statement per line).
+   - Every `if`, `for` and `while` body gets braces, even a one-line body (deadInteriorCount, interiorWallCount, bordersAreWalls currently have unbraced bodies).
+   - One declaration or statement per line. In particular:
+     - `struct ExpectedLayout`: one member per line;
+     - checkWholeSet: `bool allFound = true; int maxAttempts = 0; int minShortest = 100; int maxShortest = 0;` becomes four lines.
+   - Do not change any check, description, expected value or the order of checks.
+   - If the file then exceeds about 200 lines, move LG5 (checkWholeSet and its two calls) and LG6 into a NEW file tests/test_layout_generator_sets.cpp (the owner approves this extra file name) with its own three-part header (Purpose / "Introduced in Stage 4" / Architecture), and a function `void runLayoutGeneratorSetTests(TestCounter& counter)` declared in tests/test_suites.h, called from tests/test_main.cpp immediately after runLayoutGeneratorTests, and registered in CMakeLists.txt. It prints no new section heading. The checks keep their order and descriptions exactly.
+
+2. src/experiment/true_search.cpp: guard against an invalid world.
+   - The visited table is indexed by positions, so a world whose agent or object is outside the grid would read outside the table. At the start of shortestSolutionLength, before anything else: if `!isValidWorld(world)`, return no value (std::nullopt). Add a comment saying why (an invalid world has no solution; the guard also keeps the table indexes inside the grid). Update the header comment to say "or no value if the world is invalid or the destination cannot be reached".
+   - The generator already checks isValidWorld first, so no generated value changes.
+   - Add ONE check at the end of checkTrueSearch (LG1): D with the agent moved to (10, 3), which is outside the grid, is NOT valid (check isValidWorld is false) and shortestSolutionLength gives no value. Use one check with the description:
+     "LG1: an invalid world (agent outside the grid) has no solution length"
+
+Expected afterwards: 390 checks, 0 failures (389 + 1). The ai_hologram program output is unchanged (102 lines, identical to Stage 3).
+
+Do not change anything else. Do not create scratch, debug or temporary files; build only in CLion's cmake-build-debug. Do not edit anything in docs/, .github/, .cursor/, LICENSE, .gitignore or results/ (except appending the handoff note). If anything does not match, stop and report it.
+
+When finished: rebuild (rule 2g), report the exact test result line, confirm the program output is unchanged, append a short handoff note, and do not commit.
