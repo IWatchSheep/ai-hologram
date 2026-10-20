@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include "agent/naive_agent.h"
 #include "agent/single_agent.h"
 #include "world/world_state.h"
 
@@ -28,5 +29,12 @@ struct RunResult {
 
 RunResult runSingleAgent(const WorldState& trueInitialState,
                          SingleAgent& agent, const AgentSettings& settings);
+
+// The same loop for C0 (plan 3.11). C0 has no finalCheck, never
+// safe-stops and writes no log lines, so its result lines are only
+// the four result lines, with 0 safe stops, 0 mismatches and
+// "Corrections: 0 (0 verified)".
+RunResult runSingleAgent(const WorldState& trueInitialState,
+                         NaiveAgent& agent, const AgentSettings& settings);
 
 }  // namespace ai_hologram

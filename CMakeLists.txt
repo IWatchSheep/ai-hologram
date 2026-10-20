@@ -55,6 +55,8 @@ add_library(ai_hologram_core STATIC
     src/agent/single_agent.cpp
     src/agent/single_agent_check.cpp
     src/agent/single_agent_choose.cpp
+    src/agent/naive_agent.h
+    src/agent/naive_agent.cpp
     src/agent/run_loop.h
     src/agent/run_loop.cpp
     src/world/position.h
@@ -72,6 +74,8 @@ add_library(ai_hologram_core STATIC
     src/demo/scripted_demo.cpp
     src/demo/prediction_demo.h
     src/demo/prediction_demo.cpp
+    src/demo/agent_demo.h
+    src/demo/agent_demo.cpp
     src/model/belief.h
     src/model/prediction.h
     src/model/budget_counter.h
@@ -128,6 +132,8 @@ add_executable(ai_hologram_tests
     tests/test_single_agent_more.cpp
     tests/test_single_agent_sp7.cpp
     tests/test_single_agent_stops.cpp
+    tests/test_naive_agent.cpp
+    tests/test_agent_demo.cpp
 )
 
 # Linking lets the test program call functions from the shared core library.

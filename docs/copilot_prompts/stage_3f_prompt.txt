@@ -1,0 +1,133 @@
+You are the project's coding assistant, in place of GitHub Copilot. Every rule in .github/copilot-instructions.md that is addressed to Copilot applies to you, including rules 2a-2g. Read that file, docs/stages/STAGE_03.md (v1.2: Sections 3.10, 3.11, 4.1, 4.2, 5.1, 5.2, 5.4, 5.5, 6.1, 6.9, 9.1, 9.2 and 13) and protocol docs/EXPERIMENT_1_PROTOCOL.md Phase B 11.8 before changing anything. Never run git commit, git push, or any command that changes Git history; leave all Git operations to the owner. Sub-stages 3a-3e are complete and committed (339 checks, 0 failures).
+
+Implement SUB-STAGE 3f ONLY (plan Section 7, Step 7): C0, the C1 demonstrations, the stage number and the README status. This is the last sub-stage of Stage 3. docs/DECISIONS.md (D-019 to D-027) is NOT your job: the owner adds it separately, and you must not edit anything in docs/.
+
+1. src/agent/naive_agent.h / .cpp - C0, exactly as plan 3.11 and D-026.
+   - A plain public state struct (D-019) plus `NaiveAgent`. Construct it from the first Observation, the AgentSettings (C0 uses only B), an optional hand-written starting belief, and an optional base ActionModel, in the same style as SingleAgent.
+   - It uses the same StepPredictor (limit B), planner (`search` with reserve 0, then `fallback`), main heuristic and dead-square analysis as C1. Every prediction goes through the StepPredictor.
+   - `Decision decide(const Observation&)`. Each call starts a new step budget (startStep).
+     - C0 plans only at the first decision and whenever its plan is used up. Found with a non-empty plan gives the plan; otherwise it uses the fallback.
+     - An empty Found plan (its belief already shows the goal) counts as "no plan", like an empty fallback.
+     - With no plan and no fallback action, C0 takes the first action (North, East, South, West) whose prediction from its belief is Moved or Pushed. If none is (every one is Blocked, or the budget cannot pay), it takes North with its current belief as the expected state.
+     - Executing means taking the next plan action and setting the belief to that action's STORED expected state, with no new prediction.
+     - C0 ignores every observation after the first: the argument of decide() is never read. Add a comment saying why (Phase B 11.8).
+     - C0 makes no checks, investigations, corrections, claims, log lines or safe stops: decide() always returns an action.
+   - Public counters: `totalEvaluations()` and `searchCount()`, which counts the calls to `search`.
+   - Copying may be deleted, as for SingleAgent, if the predictor refers back into the state.
+
+2. src/agent/run_loop.h / .cpp: add the overload `RunResult runSingleAgent(const WorldState& trueInitialState, NaiveAgent& agent, const AgentSettings& settings)`.
+   - It uses the same loop as plan 3.10, but C0 has no finalCheck, never safe-stops, and writes no log lines. Its lines are only the four result lines (safe stops 0, mismatches 0, "Corrections: 0 (0 verified)", and its total evaluations).
+   - You may share code between the two overloads with a private helper in run_loop.cpp. The C1 overload's behaviour must not change: every existing test must pass unchanged.
+
+3. src/demo/agent_demo.h / .cpp: `void runAgentDemos(std::ostream& out)`. It runs the two C1 demonstrations of plan 5.4 with runSingleAgent and AgentSettings{200, 5, 100, 3}.
+   - Demo 1 is the Stage 1 demo layout with a correct belief.
+   - Demo 2 has true world = the demo layout plus a wall at (4, 3), and a hand-written starting belief = the demo layout without that wall.
+   - It writes EXACTLY the 46 lines between the markers below. The first line is an empty line. Do not write the markers.
+-----BEGIN AGENT DEMO OUTPUT-----
+
+Single-agent demonstrations use illustrative settings: budget 200 per step,
+safe-stop limit 5, step limit 100, active-test delay 3 (not the experiment's values).
+
+C1 demo 1: correct belief
+Plan: search found a plan of 4 actions
+Step 1: East | predicted Moved, observed Moved | match
+Step 2: East | predicted Pushed, observed Pushed | match
+Step 3: East | predicted Pushed, observed Pushed | match
+Step 4: East | predicted Pushed, observed Pushed | match
+Result: Success after 4 world steps, 0 safe stops
+Mismatches: 0
+Corrections: 0 (0 verified)
+Model evaluations used: 19
+
+C1 demo 2: belief wrongly has no wall at (4, 3)
+Plan: search found a plan of 4 actions
+Step 1: East | predicted Moved, observed Blocked | MISMATCH
+  - investigation: wall at (4, 3) believed free, recorded blocked (source S2)
+  - correction 1: wall at (4, 3) set to blocked: CONSISTENT
+Plan: fallback toward the best state found (10 actions)
+Step 2: North | predicted Moved, observed Moved | match
+Step 3: East | predicted Moved, observed Moved | match
+Step 4: East | predicted Moved, observed Moved | match
+Plan: active test of correction 1 (2 actions)
+Step 5: West | predicted Moved, observed Moved | match
+Step 6: South | predicted Blocked, observed Blocked | match
+  - correction 1: VERIFIED
+Plan: search found a plan of 12 actions
+Step 7: East | predicted Moved, observed Moved | match
+Step 8: South | predicted Pushed, observed Pushed | match
+Step 9: South | predicted Pushed, observed Pushed | match
+Step 10: West | predicted Moved, observed Moved | match
+Step 11: South | predicted Moved, observed Moved | match
+Step 12: East | predicted Pushed, observed Pushed | match
+Step 13: East | predicted Pushed, observed Pushed | match
+Step 14: East | predicted Pushed, observed Pushed | match
+Step 15: South | predicted Moved, observed Moved | match
+Step 16: East | predicted Moved, observed Moved | match
+Step 17: North | predicted Pushed, observed Pushed | match
+Step 18: North | predicted Pushed, observed Pushed | match
+Result: Success after 18 world steps, 0 safe stops
+Mismatches: 1
+Corrections: 1 (1 verified)
+Model evaluations used: 414
+Note: demo 2's wrong belief is hand-written; it is not fault injection.
+-----END AGENT DEMO OUTPUT-----
+
+4. src/main.cpp: the three header lines of plan 5.1, replacing the current second and third lines:
+AI Hologram -- Stage 3
+Grid world with a competent single agent (C1) and scripted demonstrations.
+No faults are injected, no two-agent reasoning exists, and no experiment is run.
+   Then runScriptedDemo(std::cout), runPredictionDemos(std::cout) and runAgentDemos(std::cout), in that order. Keep main.cpp short, and update its header comment to mention the agent demonstrations. Do not change scripted_demo.* or prediction_demo.* (plan 5.2).
+
+5. src/core/project_info.cpp: currentStage() returns 3. In tests/test_project_info.cpp change ONLY P2: check currentStage() == 3 with the description "currentStage() returns 3".
+
+6. README.md: replace ONLY the status paragraph (the line starting "**Current status: Stage 2") with exactly this one line, keeping the file's existing line endings:
+**Current status: Stage 3 — competent single agent.** The project contains a 10×10 grid world with tested movement rules; a world model, budget counter and comparison (Stage 2); and C1, the competent single agent defined in the approved Experiment 1 protocol (Phase B). C1 plans with a budgeted search over its own belief, checks each prediction against the observation, investigates mismatches, verifies corrections, and can take safe stops. C0, a naive agent used only as a reference, is also included. Demonstrations use a hand-written wrong belief. **No faults are injected, no two-agent reasoning exists, and no experiments have been run.** Files in `results/` are organizational examples, not experimental findings.
+
+7. Tests.
+   tests/test_naive_agent.cpp (C0-1 to C0-5, plan 6.9) and tests/test_agent_demo.cpp. The owner approves this extra file name, which is not in plan 4.1. Declare a run function for each in tests/test_suites.h, call it from tests/test_main.cpp after runSingleAgentTests, and register both files in CMakeLists.txt. Every world must be valid, checked with check(). Compare lines exactly, with a linesEqual-style helper that prints the first differing line.
+
+   Layouts (rows y = 0..9):
+     D:      ##########  #........#  #........#  #..A.O..D#  #........#  #........#  #...##...#  #........#  #........#  ##########
+     D2:     D with a wall at (4, 3) (row 3 = "#..A#O..D#")
+     LTa:    ##########  #O...A...#  #........#  #........#  #........#  #........#  #........#  #.......D#  #........#  ##########
+     BOXED:  ##########  #.#......#  ##A#.....#  #.#..O..D#  #........#  #........#  #...##...#  #........#  #........#  ##########
+
+   All expected values come from the reference implementation. Use AgentSettings{200, 5, 100, 3} unless stated.
+   - C0-4. True world D, C0 with a correct belief, run with runSingleAgent(D, c0, settings). The actions are East, East, East, East, and the lines are exactly:
+Result: Success after 4 world steps, 0 safe stops
+Mismatches: 0
+Corrections: 0 (0 verified)
+Model evaluations used: 16
+   - C0-2.
+     - In a hand-run loop of the same case (decide, Environment::step, next observation), usedThisStep() after each decide is 16, 0, 0, 0, and searchCount() is 1.
+     - In C0-5 below, searchCount() is 97: C0 plans again only when its plan is used up.
+   - C0-5. True world D2; C0 with the hand-written belief D (it wrongly believes there is no wall at (4, 3)). Run with runSingleAgent. The first ten actions (record them in a hand-run loop, or in a second identical agent) are East, East, East, East, North, North, East, South, North, South. The lines are exactly:
+Result: Step limit after 100 world steps, 0 safe stops
+Mismatches: 0
+Corrections: 0 (0 verified)
+Model evaluations used: 207
+     Description: C0 makes no checks, records or safe stops, so a wrong belief is never noticed (Phase B 11.8).
+   - C0-1. Make two C0 agents, both with first observation D2 and hand-written belief D.
+     - Agent A gets the true observations from an Environment on D2.
+     - Agent B gets the FIRST observation again at every later step.
+     - Over 20 decisions, both agents choose identical actions and have identical totalEvaluations(). Different later observations change nothing.
+   - C0-3.
+     - (a) LTa: the object is on the dead corner (1, 1) and the agent is at (5, 1), so North is Blocked. The first decide gives East, with usedThisStep() == 4 and searchCount() == 1. C0's belief then has its agent at (6, 1).
+     - (b) BOXED: walls on all four sides of the agent at (2, 2). The first decide gives North, with usedThisStep() == 4, and C0's belief is unchanged.
+   - AD1 (tests/test_agent_demo.cpp): the text runAgentDemos writes to a std::ostringstream equals the 46 lines above exactly (19 and 414 evaluations included).
+   - P2: as in step 5.
+
+From the start:
+- every new file has the three-part header (Purpose / "Introduced in Stage 3" / Architecture) and beginner comments (plan 9.1), including why C0 exists and why it never reads later observations;
+- functions under about 40 lines; files under about 200 lines (split and say so if needed);
+- no exceptions, no assertions, no inheritance, no random numbers.
+
+Do not change any Stage 1, Stage 2, 3a-3e code or test, except main.cpp, project_info.cpp, P2, run_loop.* (the new overload only), and the registrations. Do not create scratch, debug or temporary files, and build only in CLion's cmake-build-debug. Do not rename, move, or delete any file. Do not edit anything in docs/ or .cursor/.
+
+If an expected value above seems wrong, or anything disagrees with the plan or protocol, stop and report it instead of changing the expectation.
+
+When finished:
+- rebuild (rule 2g) and report the exact test result line;
+- run the ai_hologram program and confirm its output is EXACTLY plan 5.5 (102 lines);
+- append a handoff note (rule 2f) saying honestly what you built and ran;
+- do not commit.

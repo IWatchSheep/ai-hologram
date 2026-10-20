@@ -6,7 +6,7 @@
 
 ## Current status
 
-**Current status: Stage 2 — prediction and comparison.** The project contains a 10×10 grid world with tested movement rules, plus a world model that predicts the result of an action from a belief (which may be wrong), a budget counter that every prediction must go through, and a comparison that reports exactly how a prediction differs from what was observed. Hand-written demonstrations show a correct belief and a wrong belief. **No reasoning components exist yet: nothing plans, chooses actions, or corrects beliefs. No experiments have been run.** Files in `results/` are organizational examples, not experimental findings.
+**Current status: Stage 3 — competent single agent.** The project contains a 10×10 grid world with tested movement rules; a world model, budget counter and comparison (Stage 2); and C1, the competent single agent defined in the approved Experiment 1 protocol (Phase B). C1 plans with a budgeted search over its own belief, checks each prediction against the observation, investigates mismatches, verifies corrections, and can take safe stops. C0, a naive agent used only as a reference, is also included. Demonstrations use a hand-written wrong belief. **No faults are injected, no two-agent reasoning exists, and no experiments have been run.** Files in `results/` are organizational examples, not experimental findings.
 
 ## Where to start reading
 
