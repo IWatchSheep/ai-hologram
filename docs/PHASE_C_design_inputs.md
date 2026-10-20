@@ -145,3 +145,41 @@
     - cautious actions and safe stops give up progress to avoid a trap (Brief 4.2, step 4b: acting is not always better than not acting);
     - a reasoner gives up its own belief when its own evidence shows it was wrong.
   - **For a later experiment (with groups and nested jobs):** a group member that recognises the larger job's truth may act against its own mini-job's interest, so that the larger job survives. Tests should measure whether such sacrifices help the whole more than they cost, and whether a member can be wrongly persuaded to sacrifice itself (a common-mode or false-alarm risk).
+- **Learning from lost games, passed up through the groups** (owner's note, at the protocol approval).
+  - **The owner's image (chess):**
+    - the temporal-spatial agent learns from losing games (pushing too far);
+    - it then helps the spatial agent not to lose the same way;
+    - the lesson moves up through the groups, from pawns to higher pieces, up to the king (for example, castling early);
+    - vigilance and curiosity arise when mini-groups "invent" the zero position that identifies a threat to the king.
+  - **In Experiment 1:** none. Every run starts fresh, with no learning between runs, which keeps the comparison fair.
+  - **For a later experiment:** learning across episodes, with lessons propagated from part-level groups to whole-level groups. It must be tested with fair baselines that are allowed the same learning, and with held-out layouts.
+- **Different confidence for the one who assesses and the one who does the work** (owner's qualification of A2, at the protocol approval).
+  - **The owner's words:** "a2 is not necessarily true because of confidence of testing boundaries for one person vs the confidence of the person doing the work being low because its hazardous."
+  - **The meaning (agreed with ChatGPT):** the temporal-spatial witness may be confident in its assessment of an action, while the spatial agent that must perform it has lower confidence because it recognises a hazard. The observer's confidence must not automatically override the acting agent's concern.
+  - **In Experiment 1:** respected without any confidence numbers. No action is taken because one reasoner believes it is safe. The acting agent's own judgement is always required, and unresolved disputes keep the cautious-action or safe-stop protection (protocol 13.4c, item 4).
+  - **For a later experiment:**
+    - independent confidence estimates for each agent;
+    - explicit risk assessment;
+    - the acting agent's right to withhold a hazardous action, even when its partner is confident.
+
+    Tests should measure when withholding prevents harm, and when it only causes delay.
+- **Tolerable danger: act on what is logically true until a result shows danger** (owner's clarification of A2).
+  - **The owner's words:** "That's not true with people its about tolerable danger doing what's logically true is true then only then when there is a result showing danger is the danger avoided for a new method."
+  - **The meaning (confirmed by the owner):**
+    - do not freeze because something might be dangerous;
+    - act on what is logically right, accepting tolerable danger;
+    - only when a result shows danger, avoid it and find a new method.
+  - **In Experiment 1:** recoverable disputes are settled by a safe test, so the result decides. Unrecoverable danger (a push that could trap the object permanently) is not gambled on while disputed, because there would be no later chance to try a new method (protocol 13.4c, item 4).
+  - **For a later experiment:** an explicit tolerance for danger, so that agents may accept some risks, and a world where some losses are recoverable, so that a "new method" can be tried after a bad result. Tests should measure when risk-taking pays off and when it ends the task.
+- **A limit is true information: "not false" is true** (owner's note, at the protocol approval).
+  - **The owner's words:** "if (!(dog == false)) // the dog is false, on a chain, or the man hits a wall, it is made true, because the dog is relating to the idea of a group of relative zero that being false being chained up being behind a fence is true because that affects the reasoning of other people or things on the dogs land being a reasonable place to locate their new zero location."
+  - **The meaning:** a constraint (a chain, a fence, a wall) is itself a fact. It shapes where others reasonably place their own zero.
+  - **In Experiment 1:**
+    - a Blocked outcome is evidence that corrects a reasoner's own belief;
+    - between two reasoners, the alert lets one point at a limit and the other confirm it with its own evidence;
+    - the testers' fault records are never visible to agents (Brief 11.5.2).
+  - **For a later experiment:** a shared map of limits (where zero cannot or should not be placed), built and used by a group of agents. Each entry keeps its source, and is confirmed by each user's own evidence.
+- **Anticipation weakens away from a familiar zero** (owner's note on I1).
+  - **The owner's words:** "I1: works in one zero location the safe one but eventually as it moves to a new zero location it fails this is logically true. A cat may domesticate itself but if it moves out and runs away and tries to domesticate itself again it might die of starvation or predators or hazards."
+  - **In Experiment 1:** the look-ahead is limited (L = 10, it stops at the first disagreement, and stale plans are not announced). Anticipatory detection is reported separately (I1), so its successes and failures are visible.
+  - **For a later experiment:** measure how anticipation degrades with distance from familiar ground, and how agents re-establish a safe zero in new territory.

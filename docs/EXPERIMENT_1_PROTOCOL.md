@@ -4,9 +4,9 @@
 |---|---|
 | **Project** | AI Hologram (`ai-hologram` repository) |
 | **Document** | `docs/EXPERIMENT_1_PROTOCOL.md` |
-| **Version** | **v0.9 — Phase A and Phase B approved; Phase C draft approved for validation** |
+| **Version** | **v1.0 — APPROVED AND FROZEN** |
 | **Date** | October 20, 2026 |
-| **Status** | **PHASE A APPROVED. PHASE B APPROVED. COMPLETE PROTOCOL NOT FROZEN.** Phase A (Sections 1–9) was approved on **October 19, 2026**, and Phase B (Sections 10–12) on **October 19, 2026**, each by ChatGPT (independent review) and by the owner. Phase C (Sections 13–15), **draft v0.9**, was **approved for validation** on **October 20, 2026** by ChatGPT (independent review) and by the owner, together with **amendment A1** and **interpretation I1** (13.12). Phase C is **not yet approved for the freeze**: a reference implementation of Section 13 and feasibility pilots (9.2) must be completed and independently reviewed first. The approved Phase A definitions and thresholds **must not be changed** because of pilot performance or observed experimental results. The `protocol-1-approved` tag is reserved for the complete, frozen protocol. |
+| **Status** | **COMPLETE PROTOCOL APPROVED AND FROZEN on October 20, 2026** (Section 15). Phase A (Sections 1–9) was approved on October 19, 2026; Phase B (Sections 10–12) on October 19, 2026; Phase C (Sections 13–15), with amendments **A1–A4** and interpretation **I1** (13.12), on October 20, 2026. Each was approved by ChatGPT (independent review) and by the owner. The tag `protocol-1-approved` marks the frozen version. **Nothing in this document may change** (9.5). Errors found later are documented, and the experiment is re-run under a new, separately approved protocol. |
 | **Governing specification** | `AI_Hologram_Project_Brief_v1.1.txt`, especially Sections 3, 4, 7, 11 and 12 |
 | **Required by** | Brief Section 10, "Definition gate": this protocol must be approved and frozen **before Stage 4** begins |
 | **Project state when written** | Phase A: Stage 1 complete (tag `stage-1`, commit `72a11fe`). Phase B: Stage 2 complete (tag `stage-2`, commit `e112145`). Phase C: Stage 3 complete (tag `stage-3`, commit `7587f38`); C1 and C0 exist and C1 is frozen; no two-reasoner code exists. **No experiment has been run.** |
@@ -19,9 +19,9 @@ The protocol is written in three phases, each when it can be written accurately 
 
 | Phase | When | Content | Status |
 |---|---|---|---|
-| **A — Framework** | After Stage 1 | Sections 1–9 below | **APPROVED 2026-10-19** (not frozen) |
-| **B — Definitions and baseline behaviour** | After Stage 2; **before** `STAGE_03.md` is approved | Sections 10–12 below | **APPROVED 2026-10-19** (not frozen) |
-| **C — Numbers and freeze** | During Stage 3, before Stage 4 | Sections 13–15 (placeholders below) | Not started |
+| **A — Framework** | After Stage 1 | Sections 1–9 below | **APPROVED 2026-10-19; frozen 2026-10-20** |
+| **B — Definitions and baseline behaviour** | After Stage 2; **before** `STAGE_03.md` is approved | Sections 10–12 below (amended at the freeze by A2–A4, recorded in 13.12) | **APPROVED 2026-10-19; frozen 2026-10-20** |
+| **C — Numbers and freeze** | After Stage 3, before Stage 4 | Sections 13–15 below | **APPROVED AND FROZEN 2026-10-20** (validated by a reference implementation and pilots) |
 
 Labels follow the brief: **[FACT]**, **[PROPOSAL]**, **[HYPOTHESIS]**, **[OPEN]**.
 
@@ -838,7 +838,7 @@ C0 uses C1's planner, heuristic, trap analysis and budget. It **never reads an o
 9. **Safe stops.** A safe stop happens when no safe or cautious action exists. It counts as a decision step, and it consumes that step's budget.
 10. **C0.** C0 never reads observations after the first, and plans again only when its plan is used up.
 
-## Phase C sections (DRAFT v0.9: APPROVED FOR VALIDATION on 2026-10-20; not frozen)
+## Phase C sections (v1.0: APPROVED AND FROZEN 2026-10-20)
 
 Phase C completes the Experiment 1 protocol. It defines how the two-reasoner conditions C2, C3 and C4 behave (Section 13), sets every remaining number (Section 14), and prepares the freeze record (Section 15).
 
@@ -891,7 +891,7 @@ Each reasoner has the **complete** set of C1 components: belief, history, record
   - Belief values are exchanged only as BELIEF_REPORTs for elements in dispute.
 - **Cost.**
   - **Message passing** is counted and reported, but not charged to B, as in Brief 11.5.3.
-  - **To prevent unbounded free activity,** a system sends at most **M_max** messages per decision step (Section 14). When the limit is reached, the current disagreement is treated as unresolved (13.4, step 9).
+  - **To prevent unbounded free activity,** a system sends at most **M_max** messages in **each** decision step (Section 14). The ceiling applies to every individual step, not to an average. A message that would exceed it is not sent. The current disagreement is then treated as unresolved, and the system takes a cautious action (step 9), which needs no further messages, or a safe stop. Reaching the ceiling is counted and reported. *(Made explicit in v1.0, after validation.)*
   - **Every prediction** a message reports was made through the sender's budget counter.
 
 **Free computations.**
@@ -975,7 +975,8 @@ One decision step of the two-reasoner system ends in exactly one world action or
 #### 13.4a The final action and the predictions that must be kept — [PROPOSAL] *(added in v0.8)*
 **One final action.** Before anything is executed, the system fixes exactly **one final action** A\* for the decision step. It is chosen in this order:
 1. **The proposed action:** if the reasoners' predictions of it agree (step 7), or the disagreement was resolved in its favour (step 8).
-2. **An adopted alternative proposal** (C3 only, 13.6): if it was reviewed and the predictions agree. At most one alternative proposal is considered per decision step. A further disagreement makes the step unresolved.
+   - **Choosing again after a correction** *(v1.0)*: if the investigation changes the **proposer's** belief or model, the old proposal is abandoned, and the proposer chooses again, **once per decision step**. The new proposal is reviewed. If it disagrees again, the step is unresolved (steps 8f and 9).
+2. **An adopted alternative proposal** (C3 only, 13.6). *(Trigger made exact in v1.0.)* Agent 2 proposes **only** when an immediate disagreement is unresolved and no safe test is possible (step 8f), before a cautious action is sought. Agent 1 reviews it. It is adopted only if the two predictions agree and both reasoners find it safe. At most one alternative proposal is considered per decision step.
 3. **A safe-test action** (step 8f).
 4. **A cautious action** (step 9).
 5. **Otherwise a safe stop,** with no final action.
@@ -1014,8 +1015,28 @@ A look-ahead disagreement (13.6a) concerns a state that **has not happened**. It
 
 **If it stays unresolved.**
 - **The current step is not blocked.** An unresolved future disagreement does not stop the current step, because it concerns the future. It stays on record, with its objection.
+- **Retained, not repeated** *(v1.0)*. An open warning is identified by the absolute decision step and the action it concerns. While it is open, it is **retained, not re-sent**. It closes when that step is taken or when the plan no longer contains it.
 - **It is re-examined when that step becomes the immediate step,** where the immediate-step rules apply (13.4, steps 7–9), including a safe test or a cautious action.
 - **For example, a contested push onto a cell one reasoner's analysis marks dead:** if it becomes the immediate step while still disputed, it can never be a cautious action (step 9), so the system takes a cautious action that avoids it, or safe-stops.
+
+#### 13.4c Consequence objections (trap disputes) — [PROPOSAL] *(added in v1.0, after validation; uses amendment A2)*
+A **consequence objection** names a cell p onto which a push would move the object, and which the objector's trap analysis marks dead while the other reasoner's analysis does not.
+1. **At the immediate step,** it follows the immediate-step rules (13.4, steps 8–9). The disputed push is never executed while disputed, and can never be a cautious action.
+2. **Investigation (amendment A2).** The objection is a consequence trigger for **both** reasoners. Each first checks its own **present wall values** within Manhattan distance **2** of p against the **current** observation (present values, own time, as 13.4b allows). Each corrects a wrong wall through its own V1, as in 11.4 and 11.5.
+   - If the objector's own check withdraws its objection (p is no longer dead in its analysis), it sends a RESOLUTION.
+   - If the receiver now finds p dead, it replans.
+   - Otherwise, the receiver may run the dead-square **local check** at p (one cell, the 10.7 bound). If the check fails, it makes the trap correction with V1/V2 of 11.5.
+   - The objection alone, or agreement, never establishes a correction.
+3. **Loop breaker.** If the dispute is **still unresolved by evidence** after step 2, the push onto p counts as **not safe for both** (Brief 4.2, step 4b).
+   - Agent 1 plans around it, as a both-safe requirement held outside its belief (like 13.7's constraints, but only after an investigation has failed).
+   - The requirement lasts until either reasoner's analysis of p changes through a correction.
+   - Every such case is recorded and reported.
+   - *Validation: without this rule, an unresolved dispute repeated every step until the step limit.*
+4. **Tolerable danger is tested; unrecoverable danger is not gambled on while disputed** *(clarified at the final review, in the owner's terms; no rule changes)*.
+   - **Disputed moves are tested, not avoided out of fear.** When the reasoners disagree about a move whose worst outcome is **recoverable**, such as a move into a possible wall or a push onto a cell that **neither** reasoner's analysis marks dead, the system acts as a **safe test** (13.4, step 8f), and the **result** decides. The reasoner shown wrong corrects its own belief or method.
+   - **The exception is danger that cannot be recovered from.** A push onto a cell that **either** reasoner's analysis marks dead risks a **permanent** loss: the object would be stuck for the rest of the run, leaving no chance to try a new method. While such a dispute is unresolved by evidence, that push is not taken (the loop breaker above, and steps 8f–9).
+   - **Every world action still needs both reasoners' own judgement** by this rule. Neither reasoner's confidence alone decides.
+   - Experiment 1 contains **no numerical confidence, risk-tolerance or graded-trust rule**. The owner's wider point about tolerable danger, and about the different confidence of the one assessing and the one doing hazardous work, is recorded for later experiments (`docs/PHASE_C_design_inputs.md`).
 
 #### 13.5 C2: two identical competent reasoners — [PROPOSAL]
 - **The reasoners:** R1 and R2 are two copies of C1's method.
@@ -1043,7 +1064,7 @@ A look-ahead disagreement (13.6a) concerns a state that **has not happened**. It
 - **A look-ahead disagreement** (items 2 and 3) is investigated under 13.4b. It is kept distinct from a mismatch against an observation (13.6a, 13.9).
 
 **Overlap.**
-- Agent 2 also has C1's planner. When an investigation shows Agent 1's step or plan to be wrong, Agent 2 may send its own PROPOSAL from its own search, which Agent 1 then reviews (Brief 4.2: "Agent 2 may also propose"). At most one alternative proposal is considered per decision step (13.4a).
+- Agent 2 also has C1's planner. It may send its own PROPOSAL from its own search (Brief 4.2: "Agent 2 may also propose"), **only** under the exact trigger of 13.4a item 2. Agent 1 then reviews it.
 - Each agent can detect the other's mistakes, and neither has authority (R1).
 
 **Reserves.** As 13.2, for both agents.
@@ -1061,7 +1082,10 @@ A look-ahead disagreement (13.6a) concerns a state that **has not happened**. It
 - Agent 1's **own choice** is unaffected. It keeps or replaces its plan exactly as C1 does (11.3). The rule only limits what may be announced, so Agent 2 never checks states that Agent 1's own current beliefs no longer support.
 
 **How Agent 2's look-ahead is computed.**
-- **Simulation.** Agent 2 applies the announced actions in order, starting from **its own** current belief, with **its own** model. Each simulated state is a model evaluation charged to Agent 2's budget (10.7). No simulated state is created any other way.
+- **Where it starts** *(made exact in v1.0, after validation)*:
+  - **In C3,** the look-ahead runs **only after the immediate step agreed** (or was resolved), and starts from Agent 2's own prediction of the immediate step.
+  - **In C4,** where the immediate step is not compared, it starts from a **hypothetical** state: Agent 2's own belief, with the agent and object positions of Agent 1's announced step-1 state. This is not a belief change. If that start is **not a valid world in Agent 2's belief**, the look-ahead is skipped for this step, because the conflict lies in Agent 1's territory.
+- **Simulation.** Agent 2 applies the announced actions in order, from that start, with **its own** model. Each simulated state is a model evaluation charged to Agent 2's budget (10.7). No simulated state is created any other way.
 - **Reuse.** Simulated states may be reused only within the same decision step, for the same belief and action (10.7). They are never carried to a later step, and a new decision step simulates afresh.
 - **Stopping.** The look-ahead stops at the first of:
   - L steps;
@@ -1094,7 +1118,7 @@ The same Agent 1 and Agent 2 as C3, with the same budgets and messages, but each
 - the same prediction **duties**. In particular, Agent 2 still makes its immediate prediction (13.6, review item 1) and its look-ahead.
 - **Own checks unchanged:** each agent still predicts and **retains** its own prediction of A\*, checks it against the observation, investigates its own observation mismatches, and creates and verifies its own corrections with its own evidence (13.4a, 11.1, 11.4, 11.5; 12.8.1).
 
-**What changes from C3** (the only differences):
+**What changes from C3** (the only differences; the C4 look-ahead start is defined in 13.6a):
 1. **No review across territories.**
    - Agent 2's prediction of the immediate step is used **only for its own check**. It is **not compared** with Agent 1's prediction, and Agent 2 sends no OBJECTION about the immediate step.
    - Agent 1 does not compare predictions about the context.
@@ -1147,7 +1171,7 @@ The same Agent 1 and Agent 2 as C3, with the same budgets and messages, but each
 4. **Compare again** on the same footprint cells. For an observation mismatch, the observation itself is the fixed other side.
 5. **The verdict.**
    - e is a **causal contributor** to d if the result of the comparison changes: d disappears, or its differing cells or outcomes change.
-   - If no single event changes the result, but restoring **all** events with an effective use in d **together** makes d disappear, they are recorded as **joint contributors**.
+   - **Joint contributors** *(refined in v1.0, after validation)*: the union of the **minimal sets** of active faults, of the reasoner or reasoners whose predictions are compared, whose restoration **together** makes d disappear. A set is minimal if no proper subset makes d disappear. Faults in no minimal set are excluded. This captures faults that hide each other, which the single-fault test cannot see.
    - Otherwise e is **used but not causal** for d.
 
 This calculation is entirely outside the reasoners' information and budgets. Causal and joint contributions are reported **only as secondary results**.
@@ -1275,13 +1299,52 @@ In addition to the Phase B tests (12.9), applied to each reasoner, the Stage 6 p
       - when the warned step becomes the immediate step, the disagreement is investigated under the immediate-step rules (13.4, steps 7–9), and is resolved, tested safely, or avoided by a cautious action, as those rules require.
     - **Exact expected values:** the expected log lines come from a reference implementation.
 
-#### 13.12 Amendments and interpretations to be approved before the freeze — [PROPOSAL] *(added in v0.9)*
-| ID | Kind | Content | Requires |
-|---|---|---|---|
-| **A1** | Secondary scoring extension of 12.4 | Counterfactual attribution of causal and joint contributors (13.9), used only for the secondary M2a-causal and for M9. It changes no primary definition. | Explicit approval by the owner **and** the independent reviewer before the freeze |
-| **I1** | Interpretation of 12.5.4 | For Experiment 1, look-ahead (hypothetical) disagreements are reported separately as anticipatory detection, and are **not** counted in M2a | Recorded and approved with the freeze |
+19. **M_max per step** *(v1.0)*: no decision step ever sends more than M_max messages. A deliberate-failure test with enforcement switched off must show a step exceeding M_max. With enforcement on, the disagreement is treated as unresolved.
+20. **Look-ahead alignment (13.6a):** C3 never compares future steps when the immediate step disagrees. In C4, an invalid hypothetical start skips the look-ahead.
+21. **Choosing again (13.4a):** after the proposer is corrected, the old proposal is never executed.
+22. **Retained warnings (13.4b):** a warning is sent once per (step, action).
+23. **Consequence objections (13.4c, A2), at least:**
+    - a receiver holding F4 corrects trap(p), and the correction becomes VERIFIED;
+    - a receiver holding a wrong wall near p corrects the wall;
+    - an objector holding a wrong wall near p withdraws its objection (RESOLUTION);
+    - a dispute that cannot be resolved invokes the loop breaker, and does not repeat.
+24. **F5 (A3, A4):**
+    - F5 never places the object on the believed agent cell or on a believed wall;
+    - a deferred F5 event activates at the first later step where it is applicable, by the same rule in every condition;
+    - the scheduled step, the application step and the delay are recorded.
+25. **A1 joint contributors:** in the masked-fault case, the minimal sets give exactly the jointly necessary faults.
 
-Both are listed in the freeze record (Section 15).
+#### 13.12 Amendments and interpretations to be approved before the freeze — [PROPOSAL] *(added in v0.9)*
+| ID | Kind | Content | Status |
+|---|---|---|---|
+| **A1** | Secondary scoring extension of 12.4 | Counterfactual attribution (13.9): single-fault **causal contribution**, and **joint contributors** as the union of minimal restoration sets (refined in v1.0). It is used only for the secondary M2a-causal and for M9, and changes no primary definition. | ChatGPT: approved, including the refinement. **Owner: approval required.** |
+| **A2** | Amendment of **10.7** (the scope of the dead-square local check) and **11.4 B** (consequence triggers) | A **partner's consequence objection** is a consequence trigger for both reasoners in C2–C4 (13.4c). It allows: (a) checking present wall values within Manhattan distance 2 of p against the current observation; (b) the local check at p, one cell, with the bound unchanged. Corrections still need 11.4 and 11.5 evidence. Neither an objection nor agreement can verify a correction. | ChatGPT: supported, provided it remains valid when the reasoners disagree about local walls. **Validated:** radius 2 resolved 408 of 417 single-wall disputes, and the loop breaker (13.4c) handles the rest without loops. **Owner: approval required.** |
+| **A3** | Amendment of **12.2** (when the stale-memory fault F5 can be applied) | **What F5 does:** it makes a reasoner remember the object where it was **one move ago**. **The problem:** sometimes that old square cannot be a belief about any possible world. Right after a push, the object's old square is exactly the square **the agent is now standing on**. And the reasoner might believe the old square is a **wall**. A belief with the object on the agent's own square, or inside a wall, is impossible, and no reasoner can predict from it. **The rule:** at such a step, F5 is **not applied** ("not applicable"), and the reason is recorded. Under A4, the event then waits for a later step where it can be applied. **Each reasoner's own view decides:** impossibility is judged only in the belief of the reasoner receiving the fault, never from its partner's view. For a **common-mode** F5 event, each reasoner is checked in its own belief, so the event may apply to one reasoner and still be pending for the other. It counts as one event, activated when applied to at least one reasoner (12.3), and each reasoner's application step is recorded. | ChatGPT: approved. **Owner: approval required** (reworded at the owner's request, with the same rule). |
+| **A4** | Amendment of **12.3** (F5 activation) | An F5 event that is not applicable at its scheduled step **stays pending**. It activates at the first later decision step where it is applicable, by the same rule in every condition, and counts as **not activated** if it never applies. The scheduled step, the application step, the delay and the events never activated are recorded and reported. **Deferred F5 events may activate after step 10.** F5's activation-time distribution therefore differs from that of the other types, and is reported as such. Common-exposure analysis (4.4) applies unchanged. | ChatGPT: conditionally approved. **Validated:** F5 applications rose from 11 to 216 of 270, with delays of 0–13 steps and half applied after step 10. **Owner: approval required.** |
+| **I1** | Interpretation of 12.5.4 | For Experiment 1, look-ahead (hypothetical) disagreements are reported separately as anticipatory detection, and are **not** counted in M2a. | ChatGPT: approved. **Owner: approval required.** |
+
+**Amendment text.**
+- **Phases A and B keep their approved wording.** The amendments are recorded here, and take effect at the freeze.
+- **A2** extends 10.7's line "Dead-square local check … Only while investigating a consequence surprise" to add: "**or** a partner's consequence objection (13.4c), with the same one-cell bound". It also adds to 10.7's evidence lookups "present wall values within Manhattan distance 2 of the objected cell".
+- **A3** adds to 12.2's list "When an event is not applicable": "**F5:** the object's previous square (where F5 would place it) is the square the reasoner believes the agent is on, or a square the reasoner believes is a wall. Placing the object there would make the belief impossible."
+- **A4** adds to 12.3's activation rule: "**An F5 event** not applicable at its scheduled step remains pending, and is activated at the first later decision step at which it is applicable."
+
+**Reporting events that never activate** *(documentation, added at the final review; no rule changes)*. Every scheduled event keeps its **event identifier** and its **original scheduled step** in all reports. Phase A 4.3 has two classes, "Activated" and "Not activated". Under A4 they are reported as follows:
+
+| Reported as | Meaning | Phase A 4.3 class |
+|---|---|---|
+| **Activated at its scheduled step** | Applied at the scheduled step (every type) | Activated |
+| **Activated after deferral (F5 only, A4)** | Not applicable at its scheduled step, applied later. The application step and the delay are recorded. | Activated |
+| **Not activated: run ended before the scheduled step** | The run ended before the event's step | Not activated |
+| **Not activated: not applicable at the scheduled step** (F1–F4) | Applicability failed at the step (12.2), so the event lapses | Not activated |
+| **Not activated: deferred, never applicable** (F5 only, A4) | Pending from its scheduled step until the run ended, never applicable | Not activated |
+
+- **Denominators unchanged.** Not-activated events stay out of the detection and correction denominators, exactly as Phase A 4.3 requires, and each reason is counted and reported separately, per condition and per fault type.
+- **Common exposure unchanged.** An event belongs to a comparison's common-exposure set if it was **activated in both** conditions, whatever its activation step (4.4).
+- **F5's activation times are reported separately,** because deferral makes them differ from those of the other types.
+- **No statistical decision rule (Section 7) is changed.**
+
+All are listed in the freeze record (Section 15).
 
 ---
 
@@ -1308,20 +1371,27 @@ Each number is a design judgment fixed **before any pilot**. Pilots may change a
 | **Pilot set** | **40 layouts × 2 seeds** from a separate generator seed range | Never used in the confirmatory experiment (9.1). |
 | **Generator seed ranges** | Pilot: 900000–900039. Confirmatory: 100000–100399 (layouts); run seeds 1–5 per layout | Disjoint ranges, fixed in advance. |
 | **Bootstrap seed** | **20261020** | Fixed and recorded (6.3). |
+| **A2 wall-check radius** | **Manhattan distance 2** from the objected cell | The same reach as the footprint (c2). It resolved 98% of single-wall disputes in validation. Larger radii approach a whole-board audit, which 11.1 and 12.1 exclude. The rest is handled by the loop breaker (13.4c). |
+| **F5 activation** | Deferred until applicable (A4) | With events at steps 1–10, only 11 of 269 F5 applications were possible. With deferral, 216 of 270. |
 
 ---
 
-### 15. Freeze record — [placeholder]
-To be completed when the whole protocol is approved:
-- the approval date and reviewers;
-- the `DECISIONS.md` entry;
-- the commit and the `protocol-1-approved` tag (9.5);
-- the approval of amendment **A1** and interpretation **I1** (13.12).
+### 15. Freeze record
 
-Before the freeze:
-- Section 13 is checked by a reference implementation of C2–C4 (as was done for C1);
-- pilots are run on the pilot set, for the purposes in 9.2 only.
+| Item | Record |
+|---|---|
+| **Protocol version** | v1.0 |
+| **Freeze date** | October 20, 2026 |
+| **Frozen version** | The commit tagged **`protocol-1-approved`** (annotated tag, created by the owner) |
+| **Independent review** | ChatGPT reviewed Phase C drafts v0.7, v0.8 and v0.9, the validation results, and the v1.0 candidate. It reran the reference code (`t_mmax.py`, `t_faultfree2.py` and the representative case scripts) and reproduced the reported outputs. It **recommended approval** of v1.0 and approved amendments **A1** (refined), **A2** (with its limitations documented), **A3**, **A4** and interpretation **I1**. It accepted the 417-case A2 sweep as Claude's reported reference evidence, not independently reproduced. |
+| **Owner approval** | The owner approved Phase C draft v0.9 and A1 on October 20, 2026 ("if you understand what I said and I believe you did then I agree to this"). At the final approval he went through each item in his own terms (chess, the cat and the dog, tolerable danger). At his request, A2 was clarified (13.4c, item 4: tolerable, recoverable danger is tested and the result decides; unrecoverable danger is not gambled on while disputed; no action is taken because one reasoner believes it is safe), and A3 was reworded in plain language, with each reasoner's own view deciding. **No rule changed.** He then approved, in his words: *"ok then we agree on a1, a2, a3, a4"* and *"yes I1 too"* (October 20, 2026). His observations are kept verbatim in `docs/PHASE_C_design_inputs.md` for later experiments. |
+| **Amendments and interpretations in force** | **A1**, **A2**, **A3**, **A4** and **I1**, exactly as worded in 13.12. They take effect at this freeze. Phases A and B otherwise keep their approved wording. |
+| **Validation record** | The reference implementation of Section 13 (Python; not project code), the case scripts, the regenerated validation logs and the feasibility-pilot report (9.2) are stored in `docs/protocol_validation/`. **Pilots:** 40 pilot layouts × 2 seeds, all five conditions, 0 crashes, every run within its bounds, M_max never reached, F5 activation acceptable under A4. No comparative scores were computed (9.3). |
+| **Decision record** | `docs/DECISIONS.md`, entry **D-029** |
+| **C1 baseline** | Frozen at tag `stage-3` (commit `7587f38`). It is unchanged by Phase C. |
+| **Definition gate** | Satisfied by this freeze (Brief Section 10). Stage 4 may begin. |
 
+**From this point, nothing in this document changes** (9.5). Any error found later is documented, and the experiment is re-run under a new, separately approved protocol. The confirmatory experiment may not start, and no confirmatory result may be examined, except under this frozen version.
 ---
 
 ## Revision history
@@ -1339,3 +1409,20 @@ Before the freeze:
 | Draft v0.7 | 2026-10-20 | **Phase C (Sections 13–15) drafted** by Claude after Stage 3 was completed and tagged (`7587f38`), drawing on the owner's design inputs (spatial agent and temporal-spatial witness, the common relative zero). Two-reasoner behaviour for C2–C4, all numbers, and a freeze-record placeholder. ChatGPT accepted the architecture and requested five targeted changes. |
 | Draft v0.8 | 2026-10-20 | **(1)** One final action per step; both reasoners predict and retain it; reserves; the no-budget safe stop (13.4a). **(2)** Origin and validity of announced plan states; budgeted look-ahead; look-ahead disagreements kept distinct from observation mismatches (13.6a). **(3)** C4 rewritten as an exclusive-role control with planning constraints that are not beliefs (13.7). **(4)** Activation, effective use, causal contribution and strict identification distinguished (13.9). **(5)** The sample-size justification corrected (worst-case half-width about 9.8 points); event activation described as expected, not guaranteed. |
 | Draft v0.9 — approved for validation | 2026-10-20 | **(1)** New 13.4b: a future disagreement is never checked against the present and can never make a correction CONSISTENT or VERIFIED. **(2)** Step 7 compares only where the condition allows; C4 has no immediate-step comparison; C3 and C4 have equal information and budget limits, and their actual computation may differ and is reported. **(3)** Counterfactual attribution formally proposed as **amendment A1**, with the exact fixed-input intervention; look-ahead disagreements classified as anticipatory detection, not in M2a (**interpretation I1**); new 13.12. Test 18 added at review. **APPROVED FOR VALIDATION** by ChatGPT's independent review and by the owner, including A1 and I1. Owner's approval given after going through the design in his own terms. **Not frozen:** the reference implementation of Section 13 and feasibility pilots must be completed and reviewed before the freeze. **Sections 1–12 (Phases A and B) unchanged.** |
+| v1.0 candidate | 2026-10-20 | **Validation of Phase C.** A Python reference implementation of Section 13 and feasibility pilots (40 pilot layouts × 2 seeds, all five conditions, 0 crashes) were reviewed by ChatGPT, which reran the code. **Phase C text, fixes approved:**
+(G1) look-ahead alignment (13.6a);
+(G2) choosing again after a correction (13.4a);
+(G3) warnings retained, not repeated (13.4b);
+(G4) immediate consequence objections follow steps 8–9;
+(G5) an exact trigger for Agent 2's alternative proposal;
+(G9, new 13.4c) a loop breaker for trap disputes unresolved by evidence;
+M_max enforced per decision step (13.2).
+
+**Amendments to approved Phase B, recorded in 13.12 and taking effect at the freeze:**
+**A2**, a partner's consequence objection triggers the bounded wall check (radius 2) and the local check (10.7, 11.4 B);
+**A3**, F5 is not applied when it would put the remembered object on the agent's own square or inside a believed wall, because such a belief is impossible (12.2);
+**A4**, deferred F5 activation, with timing reported (12.3).
+
+**A1** refined, with joint contributors as minimal restoration sets. New tests 19–25. **Sections 1–12 unchanged.** Pending the owner's approval of A1–A4 and I1, and a final independent review. **Not frozen.** |
+| v1.0 candidate — final corrections | 2026-10-20 | ChatGPT's final review recommended approval of v1.0 for the owner's sign-off. It independently reran the M_max and solvability checks, approved A1 (refined), A2 (with its limitations documented: unresolved trap disputes stay visible), A3, A4 and I1, and accepted the 417-case A2 sweep as Claude's reported reference evidence, not independently reproduced. **Two documentation corrections:** (A) the Phase C row of "How this document is built" updated; (B) reporting categories for events that never activate, reconciling A4 with Phase A 4.3 (13.12). **No technical or statistical rule changed.** |
+| **v1.0 — APPROVED AND FROZEN** | 2026-10-20 | The owner approved A1, A2, A3, A4 and I1 (wording recorded in Section 15), following ChatGPT's recommendation. Section 15 completed. The status lines and the "How this document is built" table updated to APPROVED AND FROZEN. The validation record is stored in `docs/protocol_validation/`. Decision D-029. Clarification added in 13.4c, item 4, after the owner's qualification of A2, in his terms: tolerable (recoverable) danger is tested and the result decides; unrecoverable danger (a push onto a cell either reasoner marks dead) is not gambled on while disputed. A3 reworded in plain language, adding that each reasoner's own view decides (including common-mode F5). **No technical or statistical rule changed from the reviewed v1.0 candidate.** Tagged **`protocol-1-approved`**. |

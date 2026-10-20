@@ -1,0 +1,388 @@
+# Validation logs v2: reference implementation of protocol Section 13 (v1.0 candidate: G1-G5, G9, A1 refined, A2 radius 2, A3, A4)
+# 2026-10-20. Claude's Python reference, not project code.
+
+=================== t_cases.py
+
+A C3: R1 lacks wall (4,3), R2 right
+R1: Plan: search found a plan of 4 actions
+Step 1: disagreement on East; belief reports exchanged
+Step 1: OBJECTION by R2 names R1
+R1: investigation: wall at (4, 3) believed free, observed blocked now (source S2)
+R1:   - correction 1: wall at (4, 3) set to blocked: CONSISTENT
+Step 1: R1 corrected; R1 chooses again
+R1: Plan: fallback toward the best state found (4 actions)
+Step 1: North -> Moved
+R1: Step 1: North | predicted Moved, observed Moved | match
+R2: Step 1: North | predicted Moved, observed Moved | match
+Step 2: East -> Moved
+R1: Step 2: East | predicted Moved, observed Moved | match
+R2: Step 2: East | predicted Moved, observed Moved | match
+Step 3: East -> Moved
+R1: Step 3: East | predicted Moved, observed Moved | match
+R2: Step 3: East | predicted Moved, observed Moved | match
+R1: Plan: active test of correction 1 (2 actions)
+Step 4: future disagreement at look-ahead step 2 (South); OBJECTION by R2 recorded
+Step 4: West -> Moved
+R1: Step 4: West | predicted Moved, observed Moved | match
+R2: Step 4: West | predicted Moved, observed Moved | match
+Step 5: South -> Blocked
+R1: Step 5: South | predicted Blocked, observed Blocked | match
+R1:   - correction 1: VERIFIED
+R2: Step 5: South | predicted Blocked, observed Blocked | match
+R1: Plan: fallback toward the best state found (2 actions)
+Step 6: East -> Moved
+R1: Step 6: East | predicted Moved, observed Moved | match
+R2: Step 6: East | predicted Moved, observed Moved | match
+Step 7: South -> Pushed
+R1: Step 7: South | predicted Pushed, observed Pushed | match
+R2: Step 7: South | predicted Pushed, observed Pushed | match
+R1: Plan: fallback toward the best state found (9 actions)
+Step 8: South -> Pushed
+R1: Step 8: South | predicted Pushed, observed Pushed | match
+R2: Step 8: South | predicted Pushed, observed Pushed | match
+Step 9: West -> Moved
+R1: Step 9: West | predicted Moved, observed Moved | match
+...
+Result: Success after 17 world steps, 0 safe stops
+
+B C3: R2 lacks wall (4,3), R1 right
+R1: Plan: fallback toward the best state found (4 actions)
+Step 1: North -> Moved
+R1: Step 1: North | predicted Moved, observed Moved | match
+R2: Step 1: North | predicted Moved, observed Moved | match
+Step 2: East -> Moved
+R1: Step 2: East | predicted Moved, observed Moved | match
+R2: Step 2: East | predicted Moved, observed Moved | match
+Step 3: East -> Moved
+R1: Step 3: East | predicted Moved, observed Moved | match
+R2: Step 3: East | predicted Moved, observed Moved | match
+Step 4: South -> Pushed
+R1: Step 4: South | predicted Pushed, observed Pushed | match
+R2: Step 4: South | predicted Pushed, observed Pushed | match
+R1: Plan: fallback toward the best state found (9 actions)
+Step 5: South -> Pushed
+R1: Step 5: South | predicted Pushed, observed Pushed | match
+R2: Step 5: South | predicted Pushed, observed Pushed | match
+Step 6: West -> Moved
+R1: Step 6: West | predicted Moved, observed Moved | match
+R2: Step 6: West | predicted Moved, observed Moved | match
+Step 7: South -> Moved
+R1: Step 7: South | predicted Moved, observed Moved | match
+R2: Step 7: South | predicted Moved, observed Moved | match
+Step 8: East -> Pushed
+R1: Step 8: East | predicted Pushed, observed Pushed | match
+R2: Step 8: East | predicted Pushed, observed Pushed | match
+Step 9: East -> Pushed
+R1: Step 9: East | predicted Pushed, observed Pushed | match
+R2: Step 9: East | predicted Pushed, observed Pushed | match
+Step 10: East -> Pushed
+R1: Step 10: East | predicted Pushed, observed Pushed | match
+R2: Step 10: East | predicted Pushed, observed Pushed | match
+Step 11: South -> Moved
+R1: Step 11: South | predicted Moved, observed Moved | match
+R2: Step 11: South | predicted Moved, observed Moved | match
+Step 12: East -> Moved
+R1: Step 12: East | predicted Moved, observed Moved | match
+R2: Step 12: East | predicted Moved, observed Moved | match
+...
+Result: Success after 14 world steps, 0 safe stops
+
+C C3: both lack wall (4,3)
+R1: Plan: search found a plan of 4 actions
+Step 1: East -> Blocked
+R1: Step 1: East | predicted Moved, observed Blocked | MISMATCH
+R1:   - investigation: wall at (4, 3) believed free, recorded blocked (source S2)
+R1:   - correction 1: wall at (4, 3) set to blocked: CONSISTENT
+R2: Step 1: East | predicted Moved, observed Blocked | MISMATCH
+R2:   - investigation: wall at (4, 3) believed free, recorded blocked (source S2)
+R2:   - correction 1: wall at (4, 3) set to blocked: CONSISTENT
+R1: Plan: fallback toward the best state found (4 actions)
+Step 2: North -> Moved
+...
+Result: Success after 18 world steps, 0 safe stops
+
+=================== t_cases2.py
+
+R C3: reciprocal - R2 wrongly believes wall (6,3)
+R1: Plan: search found a plan of 4 actions
+Step 1: future disagreement at look-ahead step 2 (East); OBJECTION by R2 recorded
+R2: investigation: wall at (6, 3) believed blocked, observed free now (source S2)
+R2:   - correction 1: wall at (6, 3) set to free: CONSISTENT
+Step 1: East -> Moved
+R1: Step 1: East | predicted Moved, observed Moved | match
+R2: Step 1: East | predicted Moved, observed Moved | match
+Step 2: East -> Pushed
+R1: Step 2: East | predicted Pushed, observed Pushed | match
+R2: Step 2: East | predicted Pushed, observed Pushed | match
+R2:   - correction 1: VERIFIED
+Step 3: East -> Pushed
+R1: Step 3: East | predicted Pushed, observed Pushed | match
+R2: Step 3: East | predicted Pushed, observed Pushed | match
+...
+Result: Success after 4 world steps, 0 safe stops
+Evaluations: R1 19, R2 9; messages 9
+
+F C3: R1 faulty East-push model (rotate left)
+R1: Plan: fallback toward the best state found (1 actions)
+Step 1: East -> Moved
+R1: Step 1: East | predicted Moved, observed Moved | match
+R2: Step 1: East | predicted Moved, observed Moved | match
+R1: Plan: fallback toward the best state found (2 actions)
+Step 2: North -> Moved
+R1: Step 2: North | predicted Moved, observed Moved | match
+R2: Step 2: North | predicted Moved, observed Moved | match
+Step 3: East -> Moved
+R1: Step 3: East | predicted Moved, observed Moved | match
+R2: Step 3: East | predicted Moved, observed Moved | match
+R1: Plan: fallback toward the best state found (2 actions)
+Step 4: East -> Moved
+R1: Step 4: East | predicted Moved, observed Moved | match
+R2: Step 4: East | predicted Moved, observed Moved | match
+Step 5: South -> Moved
+R1: Step 5: South | predicted Moved, observed Moved | match
+R2: Step 5: South | predicted Moved, observed Moved | match
+R1: Plan: fallback toward the best state found (2 actions)
+Step 6: North -> Moved
+R1: Step 6: North | predicted Moved, observed Moved | match
+R2: Step 6: North | predicted Moved, observed Moved | match
+Step 7: West -> Moved
+R1: Step 7: West | predicted Moved, observed Moved | match
+R2: Step 7: West | predicted Moved, observed Moved | match
+R1: Plan: fallback toward the best state found (2 actions)
+Step 8: East -> Moved
+R1: Step 8: East | predicted Moved, observed Moved | match
+R2: Step 8: East | predicted Moved, observed Moved | match
+Step 9: South -> Moved
+R1: Step 9: South | predicted Moved, observed Moved | match
+R2: Step 9: South | predicted Moved, observed Moved | match
+R1: Plan: fallback toward the best state found (2 actions)
+Step 10: North -> Moved
+R1: Step 10: North | predicted Moved, observed Moved | match
+R2: Step 10: North | predicted Moved, observed Moved | match
+Step 11: West -> Moved
+R1: Step 11: West | predicted Moved, observed Moved | match
+...
+Result: Step limit after 100 world steps, 0 safe stops
+Evaluations: R1 5098, R2 150; messages 200
+
+=================== t_cases3.py
+valid True
+
+C3: R1's East push wrongly predicted to move the object south
+R1: Plan: search found a plan of 6 actions
+Step 1: future disagreement at look-ahead step 4 (East); OBJECTION by R2 recorded
+Step 1: East -> Moved
+R1: Step 1: East | predicted Moved, observed Moved | match
+R2: Step 1: East | predicted Moved, observed Moved | match
+Step 2: future disagreement at look-ahead step 3 (East); warning already open, retained
+Step 2: East -> Moved
+R1: Step 2: East | predicted Moved, observed Moved | match
+R2: Step 2: East | predicted Moved, observed Moved | match
+Step 3: future disagreement at look-ahead step 2 (East); warning already open, retained
+Step 3: East -> Moved
+R1: Step 3: East | predicted Moved, observed Moved | match
+R2: Step 3: East | predicted Moved, observed Moved | match
+Step 4: disagreement on East; belief reports exchanged
+Step 4: TEST_REQUEST: East is safe for both and settles the disagreement
+Step 4: future disagreement at look-ahead step 2 (South); OBJECTION by R2 recorded
+Step 4: East -> Pushed
+R1: Step 4: East | predicted Pushed, observed Pushed | MISMATCH
+R1:   - investigation: belief matched the record; action model for East suspected (source S1)
+R1:   - correction 1: action model for East restored to the standard rule: CONSISTENT
+R2: Step 4: East | predicted Pushed, observed Pushed | match
+R1: Plan: search found a plan of 8 actions
+Step 5: North -> Moved
+R1: Step 5: North | predicted Moved, observed Moved | match
+R2: Step 5: North | predicted Moved, observed Moved | match
+Step 6: East -> Moved
+R1: Step 6: East | predicted Moved, observed Moved | match
+R2: Step 6: East | predicted Moved, observed Moved | match
+...
+Result: Success after 12 world steps, 0 safe stops
+Evaluations: R1 95, R2 50; messages 29
+
+C4: R1's East push wrongly predicted to move the object south
+R1: Plan: search found a plan of 6 actions
+Step 1: R2 context OBJECTION at look-ahead step 4 (East); R1 accepts as a planning constraint
+R1: Plan: search found a plan of 8 actions
+Step 1: East -> Moved
+R1: Step 1: East | predicted Moved, observed Moved | match
+R2: Step 1: East | predicted Moved, observed Moved | match
+Step 2: East -> Moved
+R1: Step 2: East | predicted Moved, observed Moved | match
+R2: Step 2: East | predicted Moved, observed Moved | match
+Step 3: East -> Moved
+R1: Step 3: East | predicted Moved, observed Moved | match
+R2: Step 3: East | predicted Moved, observed Moved | match
+Step 4: North -> Moved
+R1: Step 4: North | predicted Moved, observed Moved | match
+R2: Step 4: North | predicted Moved, observed Moved | match
+Step 5: East -> Moved
+R1: Step 5: East | predicted Moved, observed Moved | match
+R2: Step 5: East | predicted Moved, observed Moved | match
+Step 6: South -> Pushed
+R1: Step 6: South | predicted Pushed, observed Pushed | match
+R2: Step 6: South | predicted Pushed, observed Pushed | match
+Step 7: South -> Pushed
+R1: Step 7: South | predicted Pushed, observed Pushed | match
+R2: Step 7: South | predicted Pushed, observed Pushed | match
+Step 8: South -> Pushed
+R1: Step 8: South | predicted Pushed, observed Pushed | match
+R2: Step 8: South | predicted Pushed, observed Pushed | match
+Result: Success after 8 world steps, 0 safe stops
+...
+Result: Success after 8 world steps, 0 safe stops
+Evaluations: R1 39, R2 37; messages 9
+
+C2: R1's East push wrongly predicted to move the object south
+R1: Plan: search found a plan of 6 actions
+R2: Plan: search found a plan of 8 actions
+Step 1: East -> Moved
+R1: Step 1: East | predicted Moved, observed Moved | match
+R2: Step 1: East | predicted Moved, observed Moved | match
+Step 2: East -> Moved
+R1: Step 2: East | predicted Moved, observed Moved | match
+R2: Step 2: East | predicted Moved, observed Moved | match
+Step 3: East -> Moved
+R1: Step 3: East | predicted Moved, observed Moved | match
+R2: Step 3: East | predicted Moved, observed Moved | match
+Step 4: disagreement on East; belief reports exchanged
+Step 4: TEST_REQUEST: East is safe for both and settles the disagreement
+Step 4: East -> Pushed
+R1: Step 4: East | predicted Pushed, observed Pushed | MISMATCH
+R1:   - investigation: belief matched the record; action model for East suspected (source S1)
+R1:   - correction 1: action model for East restored to the standard rule: CONSISTENT
+R2: Step 4: East | predicted Pushed, observed Pushed | match
+R1: Plan: search found a plan of 8 actions
+R2: Plan: search found a plan of 8 actions
+Step 5: North -> Moved
+R1: Step 5: North | predicted Moved, observed Moved | match
+R2: Step 5: North | predicted Moved, observed Moved | match
+Step 6: East -> Moved
+R1: Step 6: East | predicted Moved, observed Moved | match
+R2: Step 6: East | predicted Moved, observed Moved | match
+Step 7: South -> Pushed
+R1: Step 7: South | predicted Pushed, observed Pushed | match
+...
+Result: Success after 12 world steps, 0 safe stops
+Evaluations: R1 95, R2 98; messages 27
+
+=================== t_cases4.py
+
+16/18 C3 again (warning retained, not repeated)
+R1: Plan: search found a plan of 6 actions
+Step 1: future disagreement at look-ahead step 4 (East); OBJECTION by R2 recorded
+Step 1: East -> Moved
+R1: Step 1: East | predicted Moved, observed Moved | match
+R2: Step 1: East | predicted Moved, observed Moved | match
+Step 2: future disagreement at look-ahead step 3 (East); warning already open, retained
+Step 2: East -> Moved
+R1: Step 2: East | predicted Moved, observed Moved | match
+R2: Step 2: East | predicted Moved, observed Moved | match
+Step 3: future disagreement at look-ahead step 2 (East); warning already open, retained
+Step 3: East -> Moved
+R1: Step 3: East | predicted Moved, observed Moved | match
+Result: Success after 12 world steps, 0 safe stops
+Evaluations: R1 95, R2 50; messages 29
+
+17 C4: R1 lacks wall (4,3): no immediate comparison
+R1: Plan: search found a plan of 4 actions
+Step 1: R2 look-ahead skipped (start state invalid in its own belief)
+Step 1: East -> Blocked
+R1: Step 1: East | predicted Moved, observed Blocked | MISMATCH
+R1:   - investigation: wall at (4, 3) believed free, recorded blocked (source S2)
+R1:   - correction 1: wall at (4, 3) set to blocked: CONSISTENT
+Result: Success after 18 world steps, 0 safe stops
+Evaluations: R1 334, R2 62; messages 20
+immediate comparisons recorded in C4: 0
+
+Result: Success after 17 world steps, 0 safe stops
+Evaluations: R1 318, R2 62; messages 39
+
+=================== t_mmax.py
+M_max=16, enforced -> Success | largest messages in one step: 6 | limit hits: 0
+    []
+M_max=3, enforced  -> Success | largest messages in one step: 3 | limit hits: 1
+    ['Step 1: message limit M_max=3 reached; disagreement treated as unresolved', 'Step 1: cautious action North']
+M_max=3, enforcement deliberately disabled -> Success | largest messages in one step: 6 | limit hits: 0
+    []
+deliberate failure check: a step exceeded M_max: True
+
+=================== t_trap3.py
+partner objection triggers the trap check = False: Step limit
+Step 1: future disagreement at look-ahead step 3 (West); OBJECTION by R2 recorded
+Step 3: consequence OBJECTION by R2: West pushes the object onto (1, 3), dead in R2's analysis
+Step 4: future disagreement at look-ahead step 2 (West); OBJECTION by R2 recorded
+Step 5: consequence OBJECTION by R2: West pushes the object onto (1, 3), dead in R2's analysis
+Step 6: future disagreement at look-ahead step 2 (West); OBJECTION by R2 recorded
+Step 7: consequence OBJECTION by R2: West pushes the object onto (1, 3), dead in R2's analysis
+Step 8: future disagreement at look-ahead step 2 (West); OBJECTION by R2 recorded
+Step 9: consequence OBJECTION by R2: West pushes the object onto (1, 3), dead in R2's analysis
+Step 10: future disagreement at look-ahead step 2 (West); OBJECTION by R2 recorded
+Step 11: consequence OBJECTION by R2: West pushes the object onto (1, 3), dead in R2's analysis
+Step 12: futu
+Result: Step limit after 100 world steps, 0 safe stops
+partner objection triggers the trap check = True: Success
+Step 1: future disagreement at look-ahead step 3 (West); OBJECTION by R2 recorded
+Step 3: consequence OBJECTION by R2: West pushes the object onto (1, 3), dead in R2's analysis
+R1:   - correction 1: (1, 3) classified as a dead square: CONSISTENT
+R1:   - correction 1: VERIFIED
+Result: Success after 17 world steps, 0 safe stops
+
+=================== t_a1.py
+1 causal: ((True, [(3, 3), (4, 3)]), {(0, 'wall', (4, 3)): ('effective', 'causal'), 'all restored removes d': True})
+2 overdetermined (wall c1 + irrelevant model): ((True, [(3, 3), (4, 3)]), {(0, 'wall', (4, 3)): ('effective', 'causal'), (0, 'model', 'East'): ('not effective', 'not causal'), 'all restored removes d': True})
+3 two sufficient faults: ((True, [(4, 3), (5, 3), (6, 3)]), {(0, 'wall', (6, 3)): ('effective', 'not causal'), (0, 'wall', (5, 2)): ('not effective', 'not causal'), (0, 'model', 'East'): ('not effective', 'not causal'), 'all restored removes d': True})
+
+=================== t_a1b.py
+case 3 minimal restoration sets: [(('wall', (6, 3), False), ('model', 'East', None))]
+
+=================== t_a2.py
+disagreements about p caused by one wrong wall near p: 415
+wall check radius 1: {(1, 'resolved by wall correction'): 381, (2, 'NOT resolved (loop risk)'): 27, (3, 'NOT resolved (loop risk)'): 7}
+wall check radius 2: {(1, 'resolved by wall correction'): 381, (2, 'resolved by wall correction'): 27, (3, 'NOT resolved (loop risk)'): 7}
+wall check radius 3: {(1, 'resolved by wall correction'): 381, (2, 'resolved by wall correction'): 27, (3, 'resolved by wall correction'): 7}
+wall check radius 10: {(1, 'resolved by wall correction'): 381, (2, 'resolved by wall correction'): 27, (3, 'resolved by wall correction'): 7}
+
+=================== t_a2b.py
+disagreements about p caused by one wrong wall near p: 415
+wall check radius 1: {(1, 'resolved by wall correction'): 381, (2, 'NOT resolved (loop risk)'): 27, (3, 'NOT resolved (loop risk)'): 7}
+wall check radius 2: {(1, 'resolved by wall correction'): 381, (2, 'resolved by wall correction'): 27, (3, 'NOT resolved (loop risk)'): 7}
+wall check radius 3: {(1, 'resolved by wall correction'): 381, (2, 'resolved by wall correction'): 27, (3, 'resolved by wall correction'): 7}
+wall check radius 10: {(1, 'resolved by wall correction'): 381, (2, 'resolved by wall correction'): 27, (3, 'resolved by wall correction'): 7}
+distance from p of the single wrong wall that makes p look live: {1: 381, 2: 27, 3: 7, 4: 2}
+radius 2: {'resolved by wall correction': 408, 'NOT resolved (loop risk)': 9}
+radius 3: {'resolved by wall correction': 415, 'NOT resolved (loop risk)': 2}
+radius 4: {'resolved by wall correction': 417}
+
+=================== t_g9.py
+seed 901095 p (1, 2) wrong wall (1, 5) -> Success
+Step 6: consequence OBJECTION by R2: West pushes the object onto (1, 2), dead in R2's analysis
+Step 6: consequence dispute about (1, 2) unresolved by evidence; push treated as not safe for both
+cases with a consequence dispute: 4  of which looping (>=5 objections): 0
+
+=================== t_faultfree2.py
+layouts: 150 valid; independently solvable (breadth-first search over true states): 83; unsolvable: 67
+C1@200 {'solvable: Step limit': 1, 'solvable: Success': 82, 'unsolvable: Step limit': 2, 'unsolvable: Stopped -- unresolved': 65}
+C1@100 {'solvable: Step limit': 1, 'solvable: Success': 82, 'unsolvable: Step limit': 2, 'unsolvable: Stopped -- unresolved': 65}
+C2 {'solvable: Step limit': 1, 'solvable: Success': 82, 'unsolvable: Step limit': 2, 'unsolvable: Stopped -- unresolved': 65}
+C3 {'solvable: Step limit': 1, 'solvable: Success': 82, 'unsolvable: Step limit': 2, 'unsolvable: Stopped -- unresolved': 65}
+C4 {'solvable: Step limit': 1, 'solvable: Success': 82, 'unsolvable: Step limit': 2, 'unsolvable: Stopped -- unresolved': 65}
+two-reasoner disagreements/objections: 0  reasoners with corrections or mismatches: 0
+
+=================== pilot.py --wait --trapcheck
+layouts: 40  shortest-solution range: 12 - 26
+runs per condition: 80  crashes: 0
+max decision steps per condition: {'C0': 100, 'C1': 100, 'C2': 101, 'C3': 101, 'C4': 100} (bound: T_max + S_max = 105)
+run endings, pooled over all conditions (no per-condition scores, 9.3): {'Success': 243, 'Step limit': 117, 'Stopped -- unresolved': 40}
+two-reasoner runs that took at least one world action: {'C2': 79, 'C3': 79, 'C4': 79} of 80
+largest number of messages in any single decision step (M_max = 16, enforced per step): {'C2': 7, 'C3': 7, 'C4': 3}
+decision steps that reached M_max: {'C2': 0, 'C3': 0, 'C4': 0}
+runs with 5 or more repeated consequence objections (livelock indicator): 0
+F5 not applicable because: object not yet moved 2441
+F5 not applicable because: stale cell = believed agent cell (invalid belief) 545
+fault applications, pooled (per reasoner application): {('F1', 'applied'): 254, ('F1', 'not applicable'): 9, ('F2', 'applied'): 269, ('F3', 'applied'): 269, ('F4', 'applied'): 263, ('F5', 'applied'): 216}
+F5 delay (applied step - scheduled step), per reasoner application: [(0, 10), (1, 9), (2, 41), (3, 23), (4, 27), (5, 22), (6, 29), (7, 14), (8, 22), (9, 14), (10, 2), (12, 1), (13, 2)]
+F5 timing: {'applied by step 10': 108, 'applied after step 10': 108}
+F5 reasoner applications expected: 270  applied: 216  never activated: 54
+scheduled events per type: {'F1': 48, 'F2': 48, 'F3': 48, 'F4': 48, 'F5': 48}  common-mode: 50
