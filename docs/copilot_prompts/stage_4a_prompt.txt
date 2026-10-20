@@ -1,0 +1,109 @@
+You are the project's coding assistant, in place of GitHub Copilot. Every rule in .github/copilot-instructions.md that is addressed to Copilot applies to you, including rules 2a-2g. Read that file, docs/stages/STAGE_04.md (v1.1: Sections 1, 2, 3.1, 3.2, 4.1, 4.2, 6.1, 6.2, 7, 9.1 and 13) and protocol docs/EXPERIMENT_1_PROTOCOL.md Section 14 (the "Layouts" row) before changing anything. Never run git commit, git push, or any command that changes Git history; leave all Git operations to the owner. Stage 3 is complete and tagged stage-3 (353 checks, 0 failures). The Stage 4 plan v1.1 is approved and committed.
+
+Implement SUB-STAGE 4a ONLY (plan Section 7, Step 2): the project's seeded random generator, the experimenter's true-state search, and the layout generator. Nothing else: no fault events, no fault injection, no scoring, no CSV, and NO change to any existing file except CMakeLists.txt, tests/test_suites.h and tests/test_main.cpp (registrations only). In particular, do not touch any Stage 1-3 source file: the instrumentation additions H1-H4 belong to later sub-stages.
+
+Create a new folder src/experiment/. This is experimenter code: no agent file may include these headers, and no agent ever calls these functions. Say so in each header's Architecture line.
+
+1. src/experiment/seeded_random.h / .cpp - SeededRandom, EXACTLY plan 3.1 (SplitMix64).
+   - `explicit SeededRandom(std::uint64_t seed)`; the state is one std::uint64_t, set to the seed.
+   - `std::uint64_t next()`:
+         state = state + 0x9E3779B97F4A7C15
+         z = state
+         z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9
+         z = (z ^ (z >> 27)) * 0x94D049BB133111EB
+         return z ^ (z >> 31)
+     All arithmetic is std::uint64_t (it wraps modulo 2^64 by definition; add a comment saying so).
+   - `int below(int n)`, for n >= 1: threshold = (0 - n) % n computed in std::uint64_t (that is 2^64 mod n); repeat r = next() until r >= threshold; return static_cast<int>(r % n). below(1) returns 0 but still calls next() once. If n < 1, return 0 without calling next() (callers never do this; comment it). No exceptions, no assertions.
+   - In the header (templates):
+       `template <class T> void shuffle(std::vector<T>& list)`: for i = size-1 down to 1: j = below(i + 1); swap(list[i], list[j]).
+       `template <class T> std::vector<T> pickDistinct(std::vector<T> list, int k)`: for i = 0 to k-1: j = i + below(size - i); swap(list[i], list[j]); return the first k elements in that order. (Callers always have k <= size.)
+   - Beginner comments: why the project has its own generator (the standard library's distributions are not the same on every compiler, plan 3.1, D-030); what a seed is; why the order of draws must never change (one extra draw changes every later number).
+   - Do NOT use <random>, rand() or time.
+
+2. src/experiment/true_search.h / .cpp - `std::optional<int> shortestSolutionLength(const WorldState& world)`, plan 3.2.
+   - Returns 0 if the object is already on the destination.
+   - Otherwise a breadth-first search over (agent position, object position) using the Stage 1 rules (the same function the Environment uses to apply an action), trying North, East, South, West in that order, skipping Blocked results and states already seen. Returns the number of world steps to the first state whose object is on the destination, or no value if none is reachable.
+   - Comment: this is the experimenter's search over TRUE states (Section 14, "checked by the experimenter's breadth-first search over true states (never visible to agents)"). It is not a reasoner, so it uses no budget.
+
+3. src/experiment/layout_generator.h / .cpp, plan 3.2.
+   - `struct GeneratedLayout { bool found = false; WorldState world{}; int attempts = 0; int shortest = 0; };`
+   - `GeneratedLayout generateLayout(std::uint64_t layoutSeed)`, with SeededRandom random(layoutSeed), EXACTLY:
+         for attempt = 1 to 10000:
+             for y = 0..9, then x = 0..9 (row by row):
+                 border cell (x or y is 0 or 9): wall, and NO random number is drawn
+                 interior cell: wall if random.below(100) < 12
+             free = every non-wall cell, row by row (y outer, x inner)
+             if fewer than 3 free cells: next attempt
+             (agent, object, destination) = random.pickDistinct(free, 3), in that order
+             accept only if ALL hold, otherwise next attempt:
+                 - isValidWorld(world);
+                 - shortestSolutionLength(world) has a value from 12 to 40;
+                 - at least one interior cell (x and y from 1 to 8) other than the destination is dead in
+                   computeDeadSquares(world, {}, {}, counts) (no overrides; use a local FreeComputationCounts).
+             accept: found = true, the world, attempts = attempt, shortest = that length
+         after 10000 attempts: found = false, attempts = 10000
+   - Comment: "about 12% interior walls" is read as each interior cell independently a wall with probability 12/100 (D-031); layouts must contain a true dead square because F4 needs one (Brief 11.2).
+
+4. Tests. New files tests/test_seeded_random.cpp and tests/test_layout_generator.cpp. Declare runSeededRandomTests and runLayoutGeneratorTests in tests/test_suites.h, call them from tests/test_main.cpp after runAgentDemoTests, and register the six new source files and two test files in CMakeLists.txt (sources in the ai_hologram_core library). All expected values come from the reference implementation (plan 3.1, 3.2). Compare exactly. Every hand-built world must be valid, checked with check().
+
+   test_seeded_random.cpp:
+   - RN1: SeededRandom(0), three next(): 16294208416658607535, 7960286522194355700, 487617019471545679 (write them as ...ULL literals).
+   - RN2: SeededRandom(1234567), three next(): 6457827717110365317, 3203168211198807973, 9817491932198370423.
+   - RN3: SeededRandom(42), ten below(10): 3, 1, 8, 4, 0, 2, 5, 8, 5, 4.
+   - RN4: SeededRandom(42), shuffle of {1, 2, ..., 10} gives {1, 10, 6, 9, 7, 5, 8, 3, 2, 4}.
+   - RN5: SeededRandom(7), pickDistinct({1, ..., 10}, 3) gives {8, 1, 5}.
+   - RN6: SeededRandom(5): below(1) returns 0, and a second generator SeededRandom(5) after ONE next() call has the same next value as the first after below(1) (below(1) used exactly one draw). Also: the value of next() after below(1) on SeededRandom(5) equals the second next() of a fresh SeededRandom(5).
+   - RN7: two SeededRandom(99) give the same 1000 values of next(); SeededRandom(1) and SeededRandom(2) differ at the first next().
+   - RN8: for n = 1, 2, 3, 7, 100, 1000 calls of below(n) on SeededRandom(2026) all lie in 0..n-1, and for n = 7 every value 0..6 appears at least once.
+
+   test_layout_generator.cpp:
+   Layout D (rows y = 0..9): ##########  #........#  #........#  #..A.O..D#  #........#  #........#  #...##...#  #........#  #........#  ##########
+   - LG1: shortestSolutionLength(D) == 4. D with the object moved to (1, 1) (a corner) has no value. D with the object on the destination (8, 3) gives 0 (build that world by hand, keeping it valid: the agent stays at (3, 3)).
+   - LG2: exact values (attempts, shortest, agent, object, destination, number of dead interior cells other than the destination, number of interior walls):
+         seed 500000: 3, 12, (7, 2), (6, 5), (2, 6), 25, 7
+         seed 500001: 6, 16, (8, 1), (4, 5), (8, 4), 23, 9
+         seed 500002: 1, 29, (4, 1), (4, 7), (8, 5), 27, 8
+         seed 500003: 3, 14, (1, 1), (4, 5), (7, 4), 26, 7
+         seed 900000: 2, 17, (7, 1), (7, 6), (2, 8), 19, 7
+         seed 900001: 4, 19, (4, 3), (3, 7), (5, 6), 26, 11
+   - LG3: renderWorld of layout 500000 is exactly
+         ##########
+         #...#....#
+         #.....#A.#
+         ##.......#
+         #.#......#
+         #.....O..#
+         ##D...#..#
+         #........#
+         #......#.#
+         ##########
+     and of layout 900000 is exactly
+         ##########
+         #....#.A##
+         ##...#...#
+         #........#
+         #.....#..#
+         #.#......#
+         #......O.#
+         #......#.#
+         #.D......#
+         ##########
+     Layouts 500004 to 500009 have attempts 3, 1, 3, 8, 5, 2 and shortest 20, 16, 12, 12, 12, 16.
+   - LG4: for seeds 500000 to 500009: found, isValidWorld, every border cell is a wall, shortest from 12 to 40 and equal to shortestSolutionLength of the returned world, and at least one dead interior cell other than the destination.
+   - LG5 (material only; no agent is run): seeds 900000 to 900039 are all found, the largest attempts value is 10, and shortest ranges from 12 to 35. Seeds 100000 to 100399 are all found, the largest attempts value is 20, and shortest ranges from 12 to 38. Use ONE check per set (not one per layout), so the check count stays readable, and a description that says this is material only.
+   - LG6: generateLayout(500002) twice gives identical worlds (walls, agent, object, destination), attempts and shortest.
+
+From the start:
+- every new file has the three-part header (Purpose / "Introduced in Stage 4" / Architecture) and the beginner comments of plan 9.1 that apply to these files;
+- functions under about 40 lines; files under about 200 lines (split and say so if needed);
+- no exceptions, no assertions, no inheritance, no other randomness.
+
+Do not change any Stage 1-3 code or test. Do not run any agent (C0 or C1) in this sub-stage. Do not create scratch, debug or temporary files, and build only in CLion's cmake-build-debug. Do not rename, move, or delete any file. Do not edit anything in docs/, .github/, .cursor/, LICENSE, .gitignore or results/ (except appending the handoff note).
+
+If an expected value above does not match, or anything disagrees with the plan or protocol, STOP and report the actual value. Never change an expected value.
+
+When finished:
+- rebuild (rule 2g) and report the exact test result line;
+- run the ai_hologram program and confirm its output is unchanged from Stage 3 (102 lines; this sub-stage adds nothing to it);
+- append a handoff note (rule 2f) saying honestly what you built and ran;
+- do not commit.
