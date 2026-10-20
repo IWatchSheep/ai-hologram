@@ -4,7 +4,7 @@
 |---|---|
 | **Project** | AI Hologram (`ai-hologram` repository) |
 | **Stage** | 4 of the roadmap in *AI_Hologram_Project_Brief_v1.1.txt*, Section 10 |
-| **Plan version** | 1.1 |
+| **Plan version** | 1.1.1 |
 | **Date** | October 20, 2026 |
 | **Status** | **ChatGPT's review of v1.0 (October 20, 2026): 4a and 4b APPROVED; 4c CONDITIONALLY APPROVED.** v1.1 adds what ChatGPT asked for: the instrumentation exception IE-1 (3.12), the status of the M4 clarification D-038, and the protection of primary scoring (3.9, 6.6). **APPROVED by the owner on October 20, 2026** ("yes I approve"), including IE-1 and D-038. Ready for implementation: Step 1 (the owner commits this plan), then **4a only**. 4c may begin after 4b (IE-1 is approved). **4d may not begin until plan v1.2 (exact scoring values) is reviewed and approved.** Approval of the plan does not mean any Stage 4 code is implemented or verified. |
 | **Governing specification** | AI_Hologram_Project_Brief_v1.1.txt (approved) |
@@ -261,7 +261,7 @@ At the end of the run, each event is reported in exactly one class of the 13.12 
 
 ### 3.6 The fault activation point and the run with faults [Phase B 11.3 step 4; 11.8]
 
-**C1.** Stage 3 left step 4 of `SingleAgent::decide` as a commented, empty step, placed after the check (step 2), the deferred investigation and the pending work (step 3), and before planning. Stage 4 adds one optional **activation hook** there (3.12). When the hook is empty, nothing happens, exactly as in Stage 3. *(The validation reference placed this point before the continuation of unfinished V1 checks; the C++ code places it after them, which is what 11.3 says: activation comes after step 3 is complete. The Stage 4 reference follows the C++ order.)*
+**C1.** Stage 3 left step 4 of `SingleAgent::decide` as a commented, empty step, placed after the check (step 2), the deferred investigation and the pending work (step 3), and before planning. Stage 4 adds one optional **activation hook** there (3.12). When the hook is empty, nothing happens, exactly as in Stage 3. *(v1.1.1)* One C1 step can end inside step 3: a deferred investigation that still cannot be afforded gives a safe stop at once. The activation point is still run for that step, just before the safe stop is returned; otherwise an event scheduled for that step would never be tried, and would be wrongly reported as "run ended before the scheduled step". *(The validation reference placed this point before the continuation of unfinished V1 checks; the C++ code places it after them, which is what 11.3 says: activation comes after step 3 is complete. The Stage 4 reference follows the C++ order.)*
 
 **C0.** C0 never checks or investigates, so its activation point is at the start of `NaiveAgent::decide`, after the decision step counter and the budget are renewed, and before it plans or takes its next plan action.
 
@@ -412,7 +412,7 @@ The functions return the text. A separate function writes text to a file and rep
 
 | # | File(s) | Permitted addition | Permitted behaviour | Sub-stage |
 |---|---|---|---|---|
-| H1 | `single_agent.h/.cpp`, `naive_agent.h/.cpp` | `std::function<void(int)> activationHook` in the agent's state | Called once per decision step at the activation point (C1: after step 3; C0: at the start of `decide`), with the decision step number. When empty, nothing is called. | 4c |
+| H1 | `single_agent.h/.cpp`, `naive_agent.h/.cpp` | `std::function<void(int)> activationHook` in the agent's state | Called exactly once per decision step at the activation point (C1: after step 3; C0: at the start of `decide`), with the decision step number. If a C1 step ends early in step 3 (the deferred investigation still cannot be afforded, so C1 safe-stops), the hook is called just before that safe stop is returned, so every decision step has its activation point *(clarified in v1.1.1)*. When empty, nothing is called. | 4c |
 | H2 | `agent_model.h/.cpp` | `void setBase(ActionModel model)` | Replaces the base model and keeps the restored marks. Called **only** by the fault injector (F3), never by agent code. | 4c |
 | H3 | `step_predictor.h/.cpp` | an optional pointer to an observer | After each **charged** evaluation, passes (state, action, own model or variant, result) to the observer. Null: nothing happens. Cache hits are not reported, and the observer is never consulted for any value. | 4e |
 | H4 | `dead_squares.h/.cpp`, `heuristic.cpp`, `investigation.cpp`, `planner.cpp`, `single_agent_choose.cpp`, `verification.cpp` | an optional observer pointer carried by the map (set by `DeadSquareCache::get` from the cache's own pointer); `readDeadStatus(map, cell)`, used at the five places that read a cell's dead status | `readDeadStatus` returns exactly the stored value and reports (cell, value) to the observer; `heuristic` reports its value. Null: nothing happens. | 4e |
@@ -707,5 +707,6 @@ Every point is an implementation reading of the frozen protocol, not a change to
 
 | Version | Date | Change |
 |---|---|---|
+| 1.1.1 | 2026-10-20 | Clarification found while writing the 4c prompt (no rule change): the activation point runs once in **every** decision step, including a C1 step that ends in the step-3 safe stop (3.6, 3.12 H1). The reference was changed to match; the demonstration values are unchanged. The Stage 4 reference's dead-square map now follows the current belief at every use, as the C++ cache does (values unchanged). |
 | 1.1 | 2026-10-20 | **Approved by the owner, with IE-1 and D-038.** After ChatGPT's review (4a, 4b approved; 4c conditional): 3.12 rewritten as the explicit instrumentation exception IE-1 with its seven conditions; D-038 recorded as a clarification of a frozen definition, owner approval required before 4d; primary scoring shown independent of opportunity accounting (3.9, IE-T4); per-reasoner data and provenance kept for Stage 6; tests IE-T1 to IE-T4; scoring-values plan renumbered v1.2. |
 | 1.0 | 2026-10-20 | First draft for ChatGPT's review. Exact values for 4a–4c from the reference; scoring values, CSV text and program output to follow in v1.2 (originally announced as v1.1). |

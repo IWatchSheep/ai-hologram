@@ -1,0 +1,138 @@
+You are the project's coding assistant, in place of GitHub Copilot. Every rule in .github/copilot-instructions.md that is addressed to Copilot applies to you, including rules 2a-2g. Read that file, docs/stages/STAGE_04.md (v1.1.1: Sections 2, 3.4, 3.5, 3.6, 3.12 (the instrumentation exception IE-1), 4.1, 4.2, 6.4, 6.5, 7, 9.1 and 13), and protocol docs/EXPERIMENT_1_PROTOCOL.md Phase B 11.3, 11.8, 12.2, 12.3 and Section 13.12 (A3, A4 and the reporting table) before changing anything. Never run git commit, git push, or any command that changes Git history; leave all Git operations to the owner. Sub-stages 4a and 4b are complete and committed (408 checks, 0 failures). The owner has approved IE-1.
+
+Implement SUB-STAGE 4c ONLY (plan Section 7, Step 4): applying faults to C1 and C0, activation records, and the run with faults. No scoring, no shadow evaluation, no observers (H3, H4), no CSV, no program output change.
+
+THIS IS THE FIRST SUB-STAGE THAT TOUCHES C1'S CODE. C1 is frozen at tag stage-3. Under IE-1 you may make ONLY the two Stage 3 edits H1 and H2 below, exactly as described. You must NOT change anything about C1's or C0's decisions, planning, safety rule, investigation, verification, corrections, safe stops, cache semantics or budget accounting. If you think anything else in a Stage 3 file needs to change, STOP and report it.
+
+A. Stage 3 edits permitted by IE-1 (only these):
+
+H1 - the activation hook.
+   - src/agent/single_agent.h: add to SingleAgentState, after `std::vector<std::string> log;`:
+         // The fault activation point (protocol 11.3 step 4; plan 3.6, IE-1 H1).
+         // Empty in every agent run except a run with faults (Stage 4):
+         // then the experimenter's fault injector is called here once per
+         // decision step. The agent never reads anything from it.
+         std::function<void(int)> activationHook;
+     (add #include <functional> if it is not already included.)
+   - src/agent/single_agent.cpp, SingleAgent::decide: replace the current step-4 comment block with a call `if (state.activationHook) { state.activationHook(state.decisionStep); }` and a short comment (step 4, the fault activation point; empty except in a run with faults). It stays exactly where step 4 is now: after continuePendingWork(), before chooseAndCommit().
+     ALSO (plan 3.6 v1.1.1): the line `if (const auto stopped = retryDeferred()) return *stopped;` must call the hook once before returning that safe stop, so every decision step has its activation point:
+         if (const auto stopped = retryDeferred()) {
+             if (state.activationHook) {
+                 state.activationHook(state.decisionStep);
+             }
+             return *stopped;
+         }
+     Comment why (a step that ends early in step 3 still has its activation point; otherwise an event scheduled for that step would never be tried). The order of everything else in decide() is unchanged. finalCheck() never calls the hook.
+   - src/agent/naive_agent.h: the same member in NaiveAgentState, after `int searches = 0;`, with the same comment.
+   - src/agent/naive_agent.cpp, NaiveAgent::decide: call the hook immediately after `state.predictor.startStep();` and before `if (state.plan.empty())`, with a short comment (C0 never checks or investigates, so its activation point is at the start of its step, before it plans or takes its next plan action).
+
+H2 - replacing the base model.
+   - src/agent/agent_model.h / .cpp: add `void setBase(ActionModel model);` It replaces the base model and KEEPS the restored marks. An empty model falls back to the standard rule, exactly as the constructor does. Comment: used only by the experimenter's fault injector to install a faulty action model (F3, plan 3.4); agent code never calls it.
+
+Nothing else in src/agent/, src/model/, src/world/, src/compare/ or src/demo/ changes.
+
+B. New experimenter code (src/experiment/; no agent file includes these headers):
+
+1. src/experiment/fault_injector.h / .cpp (split the .cpp into fault_injector.cpp and fault_apply.cpp if it would exceed about 200 lines; the owner approves that name).
+
+   - `struct FaultedActions { std::array<bool, 4> faulted{}; std::array<Rotation, 4> rotation{}; };` indexed by actionIndex (North, East, South, West).
+   - `ActionModel makeFaultyModel(const FaultedActions& faults);` The returned model: compute the standard result `applyAction(state, action)`. If the action is faulted AND the standard outcome is Pushed: the agent moves one cell in the action's direction (to c1); the object is predicted at c1 moved one cell in the ROTATED direction (Left turns counter-clockwise: North->West->South->East->North; Right turns clockwise). If that cell is a wall in `state` (isWall, so outside the grid counts as a wall), return the input state unchanged with outcome Blocked. Otherwise return the new state with outcome Pushed. In every other case, return the standard result unchanged. (Plan 3.4, protocol 12.2 F3.)
+   - `struct ReasonerParts { WorldState* belief; AgentActionModel* model; std::vector<Position>* notDeadOverrides; StepPredictor* predictor; };` and two functions `ReasonerParts partsOf(SingleAgentState& state);` and `ReasonerParts partsOf(NaiveAgentState& state);` that point at the corresponding members. (This replaces the "two overloads of atActivationPoint" of plan 4.2 with one function and two small adapters; no inheritance.)
+   - `struct ApplyOutcome { bool applied = false; std::string reason; };`
+   - `ApplyOutcome tryApplyFault(const FaultEvent& event, ReasonerParts parts, FaultedActions& faults, const std::vector<Observation>& trueHistory);` EXACTLY plan 3.4. Checks in this order, each returning applied = false with this exact reason text:
+       F1: no cell -> "no cell of the required kind"; FreeToBlocked and the cell is the believed agent cell -> "the wall would be under the believed agent"; FreeToBlocked and the cell is the believed object cell -> "the wall would be under the believed object". Effect: flip the belief's wall status at the cell.
+       F2: try the event's order; the first direction whose cell (believed object + that direction) is not a wall in the belief (isWall; outside the grid counts as a wall) and is not the believed agent cell: move the believed object there. If none passes -> "no direction passes the test".
+       F3: always applicable. Set faults.faulted[a] = true and faults.rotation[a] = the event's rotation; then parts.model->setBase(makeFaultyModel(faults)); then parts.model->unrestore(a).
+       F4: no cell -> "the layout has no true dead square". Effect: append the cell to *parts.notDeadOverrides.
+       F5: previous = the object's position just before its most recent move, read from trueHistory (the TRUE observations of the run so far, including the current one): scan from the last observation backwards for the last pair of consecutive observations whose object positions differ, and take the earlier one's object position. None -> "the object has not moved yet". previous == believed agent -> "the previous square is the believed agent square". The belief has a wall at previous -> "the previous square is believed to be a wall". Effect: the believed object moves to previous. (A3: the checks use this reasoner's own belief.)
+     After ANY applied fault: parts.predictor->clearCache() (D-036). Nothing else is changed (the dead-square cache recomputes by itself when the walls or overrides change).
+   - Activation records (plan 3.5):
+         enum class ActivationStatus { Scheduled, Applied, NotApplicable, Pending };
+         struct ActivationRecord {
+             std::string eventId;
+             FaultType type = FaultType::F1;
+             int scheduledStep = 0;
+             ActivationStatus status = ActivationStatus::Scheduled;
+             int applicationStep = 0;    // when Applied
+             std::string reason;         // NotApplicable: the reason; Pending: the latest reason
+         };
+     `int activationDelay(const ActivationRecord&)` = applicationStep - scheduledStep when Applied, else 0.
+     `std::string reportedAs(const ActivationRecord&)` gives exactly one of (the 13.12 classes):
+         Applied at its scheduled step -> "Activated at its scheduled step"
+         Applied later                 -> "Activated after deferral"
+         Scheduled                     -> "Not activated: run ended before the scheduled step"
+         NotApplicable                 -> "Not activated: not applicable at the scheduled step"
+         Pending                       -> "Not activated: deferred, never applicable"
+   - `class FaultInjector`:
+         FaultInjector(std::vector<FaultEvent> events, const std::vector<Observation>* trueHistory);
+         void atActivationPoint(ReasonerParts parts, int decisionStep);
+         const std::vector<ActivationRecord>& records() const;   // one per event, in event order
+     It owns the events, one ActivationRecord per event, and one FaultedActions (one injector per reasoner per run). atActivationPoint goes through the events IN LIST ORDER:
+         - status Scheduled and scheduledStep == decisionStep: tryApplyFault. Applied -> Applied, applicationStep = decisionStep. Not applied: F5 -> Pending (reason kept); F1-F4 -> NotApplicable (reason kept; never tried again).
+         - status Pending (F5 only) and decisionStep > scheduledStep: tryApplyFault. Applied -> Applied, applicationStep = decisionStep; otherwise stays Pending with the latest reason (A4).
+     C0 and C1 apply every event whatever its target (13.8).
+   - Beginner comments: what "applying a fault" means (changing the reasoner's belief or reasoning, never the world, and never charging any budget); value faults and process faults; A3 and A4 in plain words (an impossible belief is never created; F5 waits for its chance); why the cache is emptied; that the injector is experimenter code and the agent never reads it.
+
+2. src/experiment/fault_run.h / .cpp:
+   - `struct FaultRunResult { RunResult run; int decisionSteps = 0; std::vector<ActivationRecord> activations; };`
+   - `FaultRunResult runWithFaults(const WorldState& trueInitialState, SingleAgent& agent, const AgentSettings& settings, const std::vector<FaultEvent>& events);` and the same for `NaiveAgent&`.
+   - Each is EXACTLY the corresponding Stage 3 runSingleAgent loop (same outcomes, same limits, same final check for C1, same RunResult lines and counts), plus:
+       a) a `std::vector<Observation> trueHistory`: the first observation is pushed before the first decision, and every later observation (after a world action, and after a safe stop) is pushed when it is created, before the next decide() or finalCheck();
+       b) a FaultInjector(events, &trueHistory), connected before the first decision by setting agent.state.activationHook to a lambda that calls injector.atActivationPoint(partsOf(agent.state), step);
+       c) before returning (on EVERY return path), agent.state.activationHook is reset to an empty function, so the agent is never left pointing at a destroyed injector;
+       d) decisionSteps = agent.state.decisionStep at the end; activations = injector.records().
+     If the object starts on the destination, no decision is made: Success, 0 world steps, and every event stays Scheduled ("run ended before the scheduled step").
+   - Do NOT change run_loop.* : write the loop again in fault_run.cpp (you may use small private helpers there). The RunResult lines must be built exactly as run_loop.cpp builds them, using the agent_log.h line functions.
+
+C. Tests. New files tests/test_fault_injector.cpp and tests/test_fault_run.cpp (split further if a file would exceed about 200 lines; tell me the names). Declare runFaultInjectorTests and runFaultRunTests in tests/test_suites.h, call them from tests/test_main.cpp after runFaultEventSetTests (or runFaultEventTests if there is no set file), register everything in CMakeLists.txt. One statement per line; braces always. Every hand-built world must be valid, checked with check(). Settings AgentSettings{200, 5, 100, 3}. Build FaultEvent values by hand where needed (id, step, type and the fields for that type).
+
+   Layouts: D = the Stage 3 demo layout (agent (3, 3), object (5, 3), destination (8, 3); row 6 "#...##...#"). D2 = D with a wall at (4, 3).
+
+   test_fault_injector.cpp (tryApplyFault on partsOf(agent.state) of a SingleAgent built on D unless stated; the true world is never touched):
+   - FI1 F1: FreeToBlocked at (3, 3) -> not applied, "the wall would be under the believed agent"; at (5, 3) -> "the wall would be under the believed object"; at (6, 5) -> applied, the belief now has a wall at (6, 5); BlockedToFree at (4, 6) (a wall in D) -> applied, (4, 6) now free. An F1 event with hasCell = false -> "no cell of the required kind".
+   - FI2 F2: order North, East, South, West -> believed object (5, 2). A belief with the object at (1, 1), the agent at (3, 3), and walls added at (2, 1) and (1, 2) -> not applied, "no direction passes the test". A belief with the agent at (5, 2) and order North, East, South, West -> believed object (6, 3).
+   - FI3 F3 (use the model returned by makeFaultyModel and by parts.model->current()): with East faulted Right, East from D with the agent at (4, 3) gives Pushed, agent (5, 3), object (5, 4) (the standard rule gives object (6, 3)); with a wall added at (5, 4) it gives Blocked and the state unchanged; West from that state gives the standard result (Moved, agent (3, 3)). After a second F3 event (North, Left) on the same reasoner: East is still faulted, and North from D with the agent at (5, 4) gives Pushed, agent (5, 3), object (4, 3) (standard: object (5, 2)). After parts.model->restore(East): East gives the standard result and North is still faulted. Also H2: after restore(East), setBase(faulty model) keeps East restored.
+   - FI4 F4 at (1, 1) (a true dead square of D): applied; the dead-square map from the agent's deadCache (with its notDeadOverrides and deadOverrides) has (1, 1) not dead and exactly 21 dead cells (22 without the fault); after pushing (1, 1) onto the agent's deadOverrides, (1, 1) is dead again. An F4 event with hasCell = false -> "the layout has no true dead square".
+   - FI5 F5, with a hand-made true history: o1 = D; o2 = D with the agent at (4, 3) (East, Moved); o3 = D with the agent at (5, 3) and the object at (6, 3) (East, Pushed). Belief = o3's state -> not applied, "the previous square is the believed agent square". Add o4 = o3 with the agent at (5, 2) (North, Moved); belief = o4's state -> applied, believed object (5, 3). History {o1} only -> "the object has not moved yet". Belief = o4's state with a wall added at (5, 3) -> "the previous square is believed to be a wall".
+   - FI6: predict one action through parts.predictor (so isCached is true), apply any fault that applies -> isCached is false afterwards. A fault that does not apply leaves the cache as it was.
+   - FI7 (A4), from the demonstration experiment run with C1 (see FR2 below): event 500003-1-1 (F5, step 1) is Applied at step 9, delay 8, reported "Activated after deferral"; event 500001-1-3 (F5, step 8) is Pending, reason "the object has not moved yet", reported "Not activated: deferred, never applicable".
+   - FI8: C1 on D with one F2 event at step 10 -> the run succeeds in 4 world steps and the event is reported "Not activated: run ended before the scheduled step". C1 on D with one F1 FreeToBlocked event at (3, 3), step 1 -> reported "Not activated: not applicable at the scheduled step", reason "the wall would be under the believed agent", and the run is identical to the fault-free run (Success, 4 world steps, 19 evaluations).
+   - reportedAs and activationDelay for one record of each status.
+
+   test_fault_run.cpp:
+   - FR1 (injection reproduces Stage 3 demonstration 2): true world D2, C1 with NO starting belief, events = { id "demo-1", step 1, F1, BlockedToFree, cell (4, 3) }. runWithFaults gives EXACTLY the same RunResult lines as runSingleAgent(D2, C1 with the hand-written starting belief D) - that is, the Stage 3 demonstration 2 lines - and 414 evaluations; the event is "Activated at its scheduled step" at step 1.
+   - FR2: the demonstration experiment (layouts 500000-500003 from generateLayout, runs (500000,1), (500000,2), (500001,1), ..., (500003,2), events from generateFaultEvents with master seed 4242). For each run, a fresh C1 and a fresh C0 built from the run's first observation of its true layout, then runWithFaults. Exact values:
+         run       C1: outcome     world  decision  safe  evals   C0: outcome   world  evals
+         500000-1  Success         12     12        0     270     Success       12     152
+         500000-2  Success         12     12        0     304     Success       12     152
+         500001-1  Step limit      100    100       0     9704    Success       16     156
+         500001-2  Success         18     18        0     469     Success       16     156
+         500002-1  Step limit      100    100       0     9406    Step limit    100    9200
+         500002-2  Step limit      100    100       0     9207    Step limit    100    9200
+         500003-1  Success         16     16        0     525     Success       16     256
+         500003-2  Step limit      100    100       0     9178    Step limit    100    9000
+     ("Step limit" is the outcome text; decision steps = FaultRunResult.decisionSteps; evals = RunResult.evaluations.) Use one check per run and condition.
+   - FR3: in the same runs, every event is "Activated at its scheduled step" (application step = scheduled step) in both C1 and C0, EXCEPT:
+         500001-1-3: C1 Pending, "Not activated: deferred, never applicable", reason "the object has not moved yet"; C0 "Activated after deferral" at step 15 (delay 7)
+         500002-2-3: C1 and C0 "Activated after deferral" at step 12 (delay 3)
+         500003-1-1: C1 "Activated after deferral" at step 9 (delay 8); C0 at step 11 (delay 10)
+   - FR4 / IE-T2 (instrumentation enabled changes nothing): with an EMPTY event list, runWithFaults gives exactly the same RunResult (outcome, counts and every line) as runSingleAgent for: C1 on D; C1 on true D2 with starting belief D; C0 on D; C0 on true D2 with starting belief D. After each run, the agent's activationHook is empty again.
+   - IE-T1 (instrumentation disabled): runSingleAgent of C1 on D and on D2 with belief D still gives 19 and 414 evaluations and their Stage 3 lines (compare with the existing expected lines, or with the AD1 text).
+   - FR5: run 500002-2 with C1 twice gives identical results, lines and activation records (reproducibility).
+   - FR6: a run on D whose object starts on the destination: Success, 0 world steps, 0 decision steps, and an event at step 1 stays "Not activated: run ended before the scheduled step".
+
+From the start:
+- every new file has the three-part header (Purpose / "Introduced in Stage 4" / Architecture) and the beginner comments of plan 9.1 that apply; the changed Stage 3 files keep their headers, with one line added to each header's Architecture comment noting the Stage 4 IE-1 addition (H1 or H2);
+- functions under about 40 lines; files under about 200 lines (split and say so); one statement per line; braces always;
+- no exceptions, no assertions, no inheritance, no randomness.
+
+Do not change any other Stage 1-3 code or test, or any 4a/4b code or test. Do not create scratch, debug or temporary files, and build only in CLion's cmake-build-debug. Do not rename, move, or delete any file. Do not edit anything in docs/, .github/, .cursor/, LICENSE, .gitignore or results/ (except appending the handoff note).
+
+If an expected value above does not match, STOP and report the actual value and what you found. Never change an expected value, and never change C1 or C0 to make a value match: a difference may mean the reference is wrong, or that C1 has a genuine bug, and only Claude and the owner decide which.
+
+When finished:
+- rebuild (rule 2g) and report the exact test result line (all 353 Stage 3 checks must still pass);
+- run the ai_hologram program and confirm its output is unchanged from Stage 3 (102 lines, 94 non-empty);
+- list every line you changed in the Stage 3 files (H1, H2), so the owner and Claude can check them against IE-1;
+- append a handoff note (rule 2f) saying honestly what you built and ran;
+- do not commit.
