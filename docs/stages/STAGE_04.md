@@ -4,9 +4,9 @@
 |---|---|
 | **Project** | AI Hologram (`ai-hologram` repository) |
 | **Stage** | 4 of the roadmap in *AI_Hologram_Project_Brief_v1.1.txt*, Section 10 |
-| **Plan version** | 1.1.1 |
+| **Plan version** | 1.2.1 |
 | **Date** | October 20, 2026 |
-| **Status** | **ChatGPT's review of v1.0 (October 20, 2026): 4a and 4b APPROVED; 4c CONDITIONALLY APPROVED.** v1.1 adds what ChatGPT asked for: the instrumentation exception IE-1 (3.12), the status of the M4 clarification D-038, and the protection of primary scoring (3.9, 6.6). **APPROVED by the owner on October 20, 2026** ("yes I approve"), including IE-1 and D-038. Ready for implementation: Step 1 (the owner commits this plan), then **4a only**. 4c may begin after 4b (IE-1 is approved). **4d may not begin until plan v1.2 (exact scoring values) is reviewed and approved.** Approval of the plan does not mean any Stage 4 code is implemented or verified. |
+| **Status** | **ChatGPT's review of v1.0 (October 20, 2026): 4a and 4b APPROVED; 4c CONDITIONALLY APPROVED.** v1.1 adds what ChatGPT asked for: the instrumentation exception IE-1 (3.12), the status of the M4 clarification D-038, and the protection of primary scoring (3.9, 6.6). v1.1 **APPROVED by the owner on October 20, 2026** ("yes I approve"), including IE-1 and D-038. **Sub-stages 4a, 4b and 4c are complete and committed** (485 checks, 0 failures; commit `b7aba54`). **v1.2 adds the exact scoring values, CSV text, interfaces and program output for 4d–4f, and four new readings (D-042 to D-045). ChatGPT APPROVED v1.2 for 4d–4f (October 20, 2026), subject to the owner's approval and three clarifications, made in v1.2.1. **APPROVED by the owner on October 20, 2026**, after going through each reading as a scenario in his own terms (Rule 1, D-042: "yes now onto the next rule"; Rule 2, D-043: the desert at night, "stay with the car", "I agree too"; Rule 3, D-044: tame and feral, two possibilities, "I agree too"; Rule 4, D-045: "nothing is broken from that ... I agree too"; Rule 5, SC2: "I agree if the desert at night rule is used"). Ready for 4d.** |
 | **Governing specification** | AI_Hologram_Project_Brief_v1.1.txt (approved) |
 | **Governing protocol** | `docs/EXPERIMENT_1_PROTOCOL.md` **v1.0, frozen** (tag `protocol-1-approved`, commit `e7b4462`). This plan implements Phase A 4.2–4.4 and 5, Phase B 12.2–12.6, Section 13.8 (fault targets), Section 13.12 (A3, A4 and the reporting table) and the numbers in Section 14, **for C0 and C1**. **The protocol cannot change. Where this plan and the protocol disagree, the protocol wins and the owner must be told.** Where the protocol leaves an implementation detail open, this plan fixes it as a **reading** (marked [READING]), lists it for review (Section 14), and records it in `DECISIONS.md`. A reading may fill a gap; it may never change a protocol rule. |
 | **Builds on** | Stage 3, complete and tagged `stage-3` (commit `7587f38`). C1 is frozen there. |
@@ -307,14 +307,14 @@ The **scorer** is experimenter code in `src/experiment/`. It reads the agent's p
 - **phase A(*t*)**: from the start of `decide` to the activation point (receiving, checking, investigating, pending work);
 - **phase B(*t*)**: from the activation point to the end of `decide` (planning, safety, commitment).
 
-The scorer takes a **snapshot** at the activation point **before** any fault is applied (end of A(*t*)), and another when `decide` returns (end of B(*t*)). The final check after the last world action is a phase A with no phase B. For C0, phase A is empty. Everything the agent records in a phase is dated to that phase. This gives the order within a step that the definitions need (a claim made in A(*t*) comes **before** a fault activated at *t*; a claim made by an exhaustive search in B(*t*) comes after it).
+The scorer takes a **snapshot** at the activation point **before** any fault is applied (end of A(*t*)), and another when `decide` returns (end of B(*t*)). The final check after the last world action is a phase A with no phase B; it is dated to the last decision step (it is part of no new step) *(v1.2, D-045)*. For C0, phase A is empty. Everything the agent records in a phase is dated to that phase. This gives the order within a step that the definitions need (a claim made in A(*t*) comes **before** a fault activated at *t*; a claim made by an exhaustive search in B(*t*) comes after it).
 
 **Active or not.** At every snapshot, for every activated event that has not ended:
 - **Value faults** (F1, F2, F5) are active while the element's believed value differs from its true value at that moment (the true object position is the object's position in the current observation).
 - **Process faults** (F3, F4) are active until the reasoner's state shows the true behaviour: F3 ends when action *a* is marked restored; F4 ends when *p* is among the reasoner's "dead" corrections.
 
 **End states** (exactly one at the end of the run, with the step at which it was reached):
-1. **Corrected.** The element became true in a phase in which the agent created a **correction record** for the same element with the **true value** (for the object: the true position at that time). The record's final status is reported: CONSISTENT or VERIFIED.
+1. **Corrected.** The element became true in a phase in which the agent created a **correction record** for the same element with the **true value** (3.8, D-042 for the object). For a process fault (F3, F4), the record that restored the true behaviour. The record's final status is reported: CONSISTENT, VERIFIED, or REJECTED *(v1.2)*. REJECTED appears only when the record was rejected later but the fault did **not** come back: C1 never reverts an object correction (Stage 3 plan 3.8), so a rejected object correction leaves the belief as it is. Such an event stays Corrected (it is not active), and it is **not** a verified correction.
 2. **Overwritten without correction** (value faults only). The element became true in a phase with no such correction record.
 3. **Active at end of run.**
 
@@ -330,7 +330,8 @@ The scorer takes a **snapshot** at the activation point **before** any fault is 
 **For each claim**, the scorer records the reasoner, the element (wall(c), object, model(a), trap(p)), the claimed value, and whether the value is true. Then:
 - **Correctly identifies** event *e* (12.5.7): the claim names *e*'s reasoner and *e*'s element, and *e* was active at the start of the claim's phase.
 - **False alarm** (M3, 12.5.9): no activated fault in that reasoner and element was active at the start of the claim's phase.
-- **Wrong accepted correction** (M6, 12.5.11): the claimed value is not the true value. (A trap(p) claim is true if *p* is a true dead square. A model(a) claim is always "the standard rule", which is the true behaviour.)
+- **Wrong accepted correction** (M6, 12.5.11): the claimed value is not the true value. A wall(c) claim is true if it matches the true wall at *c*. A trap(p) claim is true if *p* is a true dead square. A model(a) claim is always "the standard rule", which is the true behaviour.
+- **The true value of an object claim** [READING, D-042, *v1.2*]. An object correction says where the object was **just before the investigated action**: its V1 check is time-aware and compares with the observation before that action (Stage 3 plan 3.8). So its value is judged against that same moment: the true object position in the observation before the one checked in the **latest mismatch record** (a mismatch recorded at decision step *s* checks observation o_s, so the claim is judged against o_(s−1)). Judging it against the object's position after the action would wrongly call every object correction after a push "wrong". (Object corrections come only from investigating a mismatch, either at once or in a deferred retry, and in both cases the latest mismatch record is the one investigated.)
 
 **For each event *e*** (common-mode events count once, Phase A 5.2; for C0 and C1 there is only one reasoner, so "at least one affected reasoner" is that reasoner):
 - **Strict detection** (M2, 12.5.8): the first claim that correctly identifies *e*. Its step, and the **detection delay** (M5) = detection step − activation step.
@@ -358,13 +359,13 @@ The scorer takes a **snapshot** at the activation point **before** any fault is 
 
 If the shadow input is not a valid world (for example, the true wall at c is under the state's agent), the use counts as effective.
 
-**Three kinds of computation are observed** [READING, D-040]:
+**Three kinds of computation are observed** [READING, D-040]. *(v1.2, D-043)* The evaluation observer is told which model was used (the reasoner's own model, or a variant such as the standard rule or an old model). The F1, F2 and F5 shadows repeat the evaluation with **that same model**; the F3 shadow applies only to the reasoner's own model. The heuristic shadow for F2 and F5 uses the reasoner's current map; for F1 and F4, the shadow map:
 
 | Computation | Effective use when |
 |---|---|
 | **Model evaluation** (every charged evaluation, with the own model or a variant) | the predicted outcome, or the footprint contents (10.5, the two-prediction rule), differ from the shadow's |
 | **Heuristic value** | the value differs from the heuristic of the shadow state with the shadow map |
-| **Dead-square status read** (the planner's pruning, the safety rule, the local check and the trap verification each read one cell's status) | the status differs from the shadow map's status of that cell |
+| **Dead-square status read**: every read of one cell's status through `readDeadStatus` (six places: the heuristic, the planner's pruning, the safety rule and the active-test estimate, the consequence check, the local check, and the trap verification) | the status differs from the shadow map's status of that cell |
 
 *Why status reads and not whole analysis runs:* Phase A 4.3 defines a detection opportunity as the faulty belief being "actually used in at least one prediction or decision". Running the trap analysis is not a use; reading *p*'s status to prune a plan, or to reject an action, is. (Comparing whole maps would make F1 and F4 "used" at every recomputation, even when no decision depended on them.)
 
@@ -395,7 +396,8 @@ One **run record** and one **event record** per scheduled event, as plain struct
 
 - `run_id` = `<layoutSeed>-<runSeed>`; `condition` = `C0` or `C1`; `reasoner` = `R` for C0 and C1 (Stage 6 uses `R1`, `R2`).
 - `outcome`: `Success`, `Step limit` or `Stopped -- unresolved` (as Stage 3).
-- `reported_as`: one of the five texts of 3.5. `end_state`: `Corrected`, `Overwritten without correction`, `Active at end of run`, or empty for events not activated. `correction_status`: `CONSISTENT`, `VERIFIED` or empty.
+- `reported_as`: one of the five texts of 3.5. `end_state`: `Corrected`, `Overwritten without correction`, `Active at end of run`, or empty for events not activated. `correction_status`: `CONSISTENT`, `VERIFIED`, `REJECTED` (3.7) or empty.
+- *(v1.2, D-044)* **Events not activated** have every measurement field empty (`activation_step` to `verified_correction`, except `not_activated_reason`), because they are outside every denominator (Phase A 4.3). Activated events have `1`/`0` in every yes/no field. `not_activated_reason` is filled for "not applicable" and "deferred, never applicable" events, and empty otherwise. `activation_delay` is 0 for events activated at their scheduled step. `detection_delay` is empty when not strictly detected; `end_step` is empty for "Active at end of run".
 - `order` is the four directions separated by single spaces.
 
 The functions return the text. A separate function writes text to a file and reports success or failure (no exceptions). **Stage 4 writes no result files** into the repository: the demonstration prints its CSV lines to the screen, and the file-writing test writes and deletes one file in the build folder. Writing the experiment's files is Stage 7's job.
@@ -414,8 +416,8 @@ The functions return the text. A separate function writes text to a file and rep
 |---|---|---|---|---|
 | H1 | `single_agent.h/.cpp`, `naive_agent.h/.cpp` | `std::function<void(int)> activationHook` in the agent's state | Called exactly once per decision step at the activation point (C1: after step 3; C0: at the start of `decide`), with the decision step number. If a C1 step ends early in step 3 (the deferred investigation still cannot be afforded, so C1 safe-stops), the hook is called just before that safe stop is returned, so every decision step has its activation point *(clarified in v1.1.1)*. When empty, nothing is called. | 4c |
 | H2 | `agent_model.h/.cpp` | `void setBase(ActionModel model)` | Replaces the base model and keeps the restored marks. Called **only** by the fault injector (F3), never by agent code. | 4c |
-| H3 | `step_predictor.h/.cpp` | an optional pointer to an observer | After each **charged** evaluation, passes (state, action, own model or variant, result) to the observer. Null: nothing happens. Cache hits are not reported, and the observer is never consulted for any value. | 4e |
-| H4 | `dead_squares.h/.cpp`, `heuristic.cpp`, `investigation.cpp`, `planner.cpp`, `single_agent_choose.cpp`, `verification.cpp` | an optional observer pointer carried by the map (set by `DeadSquareCache::get` from the cache's own pointer); `readDeadStatus(map, cell)`, used at the five places that read a cell's dead status | `readDeadStatus` returns exactly the stored value and reports (cell, value) to the observer; `heuristic` reports its value. Null: nothing happens. | 4e |
+| H3 | `step_predictor.h/.cpp` | an optional pointer to an observer | After each **charged** evaluation, passes (state, action, the model used, own model or variant, result) to the observer. Null: nothing happens. Cache hits are not reported, and the observer is never consulted for any value. | 4e |
+| H4 | new header `src/agent/computation_observer.h` (the observer type, shared with H3); `dead_squares.h/.cpp`, `heuristic.cpp`, `investigation.cpp`, `planner.cpp`, `single_agent_choose.cpp`, `verification.cpp` | an optional observer pointer carried by the map (set by `DeadSquareCache::get` from the cache's own pointer, which the run with faults sets on the agent's cache); `readDeadStatus(map, cell)`, used at the **six** places that read one cell's dead status (*v1.2*: the local check in `dead_squares.cpp` is the sixth); `computeDeadSquares` itself, which writes the map, is not a read | `readDeadStatus` returns exactly the stored value and reports (cell, value) to the observer; `heuristic` reports (state, value). Null: nothing happens. | 4e |
 
 **Two kinds of attachment** (added at the owner's question, October 20, 2026; wording only). Anything attached to C1 at the same point as the hook could, in principle, change what C1 does, just as anything tied to a dog's collar could pull the dog. So the four additions are of two kinds, and each is limited differently:
 - **H1 and H2 can pull, by design.** They are how faults get into C1, and putting faults in is the point of Stage 4. What they may change is limited to the list in 3.4. With an empty event list they change nothing, and IE-T1 and IE-T2 prove that.
@@ -464,21 +466,102 @@ Exact signatures are given in each sub-stage prompt. The fixed points:
 - `std::optional<int> shortestSolutionLength(const WorldState&)`.
 - `struct GeneratedLayout { bool found; WorldState world; int attempts; int shortest; }`; `GeneratedLayout generateLayout(std::uint64_t layoutSeed)`.
 - `struct RunKey { std::uint64_t layoutSeed; int runSeed; }`; `std::vector<std::vector<FaultEvent>> generateFaultEvents(const std::vector<RunKey>&, const std::vector<WorldState>& layouts, std::uint64_t masterSeed)`.
-- `FaultInjector` holds the events and the activation records, a pointer to the true observation history, and `void atActivationPoint(<agent state>, int decisionStep)` for C1 and for C0 (two overloads; no inheritance).
-- The scorer and the CSV functions are fixed in plan v1.2 (Section 5), after the review of 3.7–3.11.
+- `FaultInjector` holds the events and the activation records, a pointer to the true observation history, and `void atActivationPoint(ReasonerParts parts, int decisionStep)`, with `partsOf` adapters for C1 and C0 (as built in 4c).
+- *(v1.2)* **Scorer** (4d, `src/experiment/scorer*.{h,cpp}`):
+  - `struct ScoredView` (read-only pointers to an agent's belief, action model, "not dead" and "dead" overrides, correction records, mismatch records and committed prediction; the last three are null for C0), with `viewOf(const SingleAgentState&)` and `viewOf(const NaiveAgentState&)`.
+  - `enum class EndState { None, Corrected, Overwritten }` and `struct EventScore` (activated, activation step, active, end state and step, correcting record id, opportunity step, revealing, mismatch step, strict step).
+  - `struct RunScore` (claims, false alarms, wrong accepted corrections, justified safe stops, mismatches, mismatches without fault cause, labels correct, labels scored).
+  - `class Scorer`: `Scorer(std::vector<FaultEvent>, WorldState trueLayout, const std::vector<Observation>* trueHistory)`; `void endPhaseA(const ScoredView&, int decisionStep)`; `void afterActivation(const ScoredView&, const std::vector<ActivationRecord>&, int decisionStep)`; `void afterDecide(const ScoredView&, const Decision&)`; `void endFinalCheck(const ScoredView&)`; `const std::vector<EventScore>& events() const`; `const RunScore& run() const`.
+  - `bool claimValueIsTrue(const CorrectionRecord&, const WorldState& trueLayout, const std::vector<Observation>& trueHistory, const std::vector<MismatchRecord>& mismatches)`.
+  - The run with faults calls them: the activation hook calls `endPhaseA`, then the injector, then `afterActivation`; after `decide` returns, `afterDecide`; after the final check, `endFinalCheck`. `FaultRunResult` gains `std::vector<EventScore> eventScores` and `RunScore score`.
+- *(v1.2)* **Observer** (4e, `src/agent/computation_observer.h`): `struct ComputationObserver { std::function<void(const WorldState&, Action, const ActionModel&, bool ownModel, const Prediction&)> onEvaluation; std::function<void(Position, bool)> onDeadRead; std::function<void(const WorldState&, int)> onHeuristic; };` `StepPredictor::setObserver(const ComputationObserver*)`; `DeadSquareCache::observer` and `DeadSquareMap::observer` (`const ComputationObserver*`, default null); `bool readDeadStatus(const DeadSquareMap&, Position)`. The shadow functions live in `src/experiment/shadow.{h,cpp}`.
+- *(v1.2)* **CSV** (4f, `src/experiment/csv_output.{h,cpp}`): `std::string runCsvHeader()`, `std::string eventCsvHeader()`, `std::string runCsvRow(...)`, `std::string eventCsvRow(...)`, `bool writeTextFile(const std::string& path, const std::string& text)`.
 
 ---
 
 ## 5. Expected program output
 
-The program's existing lines (Stage 3 5.5) are unchanged, except the stage number (`Stage: 4`). In 4f, a Stage 4 section is added at the end:
-1. a heading and one sentence saying that this is the measuring instrument working on demonstration material, not an experiment;
-2. layout 500000, rendered, with its attempts and shortest solution;
-3. the fault-event list of runs 500000-1 and 500003-1;
-4. C1 and C0 on runs 500000-2 and 500003-1: the activation records and the run results;
-5. the `runs.csv` and `events.csv` lines for those four (run, condition) pairs.
+*(Exact text added in v1.2, from the reference.)* The program's output is the Stage 3 output (Stage 3 5.5) with **only its three header lines changed**, followed by a new Stage 4 section. In total: **170 lines** (152 non-empty).
 
-**The exact text of this section, and the exact scoring values for 4d–4f, are added in plan v1.2**, produced by the reference implementation once ChatGPT has reviewed the definitions in 3.7–3.11. Producing them before that review would build exact numbers on definitions that may still change.
+**New header lines** (replacing the Stage 3 ones):
+```
+AI Hologram -- Stage 4
+Grid world with a competent single agent (C1), fault injection and measurement.
+Faults are injected only on demonstration material; no two-agent reasoning exists, and no experiment is run.
+```
+Lines 4–102 are exactly the Stage 3 lines 4–102 (the scripted, prediction and agent demonstrations, unchanged).
+
+**The Stage 4 section** (lines 103–170, written by `runFaultDemo(std::ostream&)`; the first line is empty):
+```
+
+Stage 4: the measuring instrument, on demonstration material (not an experiment)
+Faults are injected into a reasoner's beliefs or reasoning, never into the world.
+Demonstration seeds 500000-500003 only; no pilot or confirmatory layout is used.
+
+Layout 500000 (found at attempt 3, shortest solution 12 world steps):
+##########
+#...#....#
+#.....#A.#
+##.......#
+#.#......#
+#.....O..#
+##D...#..#
+#........#
+#......#.#
+##########
+
+Fault events of runs 500000-1 and 500003-1 (fault master seed 4242):
+500000-1-1 step 4 F1 target both | (6, 8) free->blocked
+500000-1-2 step 6 F3 target R1 | East right
+500000-1-3 step 10 F4 target R2 | (8, 2)
+500003-1-1 step 1 F5 target R1 | -
+500003-1-2 step 2 F4 target R1 | (1, 7)
+500003-1-3 step 8 F1 target R2 | (6, 8) free->blocked
+
+Run 500000-2, C1: Success after 12 world steps, 12 decision steps, 0 safe stops, 304 model evaluations
+  500000-2-1 F1: Activated at its scheduled step (step 2)
+  500000-2-2 F2: Activated at its scheduled step (step 9)
+  500000-2-3 F4: Activated at its scheduled step (step 10)
+
+Run 500000-2, C0: Success after 12 world steps, 12 decision steps, 0 safe stops, 152 model evaluations
+  500000-2-1 F1: Activated at its scheduled step (step 2)
+  500000-2-2 F2: Activated at its scheduled step (step 9)
+  500000-2-3 F4: Activated at its scheduled step (step 10)
+
+Run 500003-1, C1: Success after 16 world steps, 16 decision steps, 0 safe stops, 525 model evaluations
+  500003-1-1 F5: Activated after deferral (step 9, delay 8)
+  500003-1-2 F4: Activated at its scheduled step (step 2)
+  500003-1-3 F1: Activated at its scheduled step (step 8)
+
+Run 500003-1, C0: Success after 16 world steps, 16 decision steps, 0 safe stops, 256 model evaluations
+  500003-1-1 F5: Activated after deferral (step 11, delay 10)
+  500003-1-2 F4: Activated at its scheduled step (step 2)
+  500003-1-3 F1: Activated at its scheduled step (step 8)
+
+runs.csv:
+run_id,condition,layout_seed,run_seed,outcome,decision_steps,world_steps,safe_stops,justified_safe_stops,mismatches,mismatches_without_fault_cause,source_labels_correct,source_labels_scored,claims,false_alarms,wrong_accepted_corrections,evaluations,events_scheduled,events_activated
+500000-2,C1,500000,2,Success,12,12,0,0,1,0,1,1,1,0,0,304,3,3
+500000-2,C0,500000,2,Success,12,12,0,0,0,0,0,0,0,0,0,152,3,3
+500003-1,C1,500003,1,Success,16,16,0,0,1,0,1,1,1,0,0,525,3,3
+500003-1,C0,500003,1,Success,16,16,0,0,0,0,0,0,0,0,0,256,3,3
+
+events.csv:
+event_id,condition,reasoner,layout_seed,run_seed,type,target,common_mode,cell,direction,order,action,rotation,scheduled_step,reported_as,activation_step,activation_delay,not_activated_reason,opportunity,opportunity_step,revealing_opportunity,mismatch_detected,mismatch_step,strictly_detected,strict_step,detection_delay,end_state,end_step,correction_status,verified_correction
+500000-2-1,C1,R,500000,2,F1,R1,0,1:6,blocked->free,,,,2,Activated at its scheduled step,2,0,,0,,0,0,,0,,,Active at end of run,,,0
+500000-2-2,C1,R,500000,2,F2,R2,0,,,North South East West,,,9,Activated at its scheduled step,9,0,,1,9,1,1,10,1,10,1,Corrected,10,CONSISTENT,0
+500000-2-3,C1,R,500000,2,F4,R2,0,7:1,,,,,10,Activated at its scheduled step,10,0,,0,,0,0,,0,,,Active at end of run,,,0
+500000-2-1,C0,R,500000,2,F1,R1,0,1:6,blocked->free,,,,2,Activated at its scheduled step,2,0,,0,,0,0,,0,,,Overwritten without correction,2,,0
+500000-2-2,C0,R,500000,2,F2,R2,0,,,North South East West,,,9,Activated at its scheduled step,9,0,,0,,0,0,,0,,,Overwritten without correction,10,,0
+500000-2-3,C0,R,500000,2,F4,R2,0,7:1,,,,,10,Activated at its scheduled step,10,0,,0,,0,0,,0,,,Active at end of run,,,0
+500003-1-1,C1,R,500003,1,F5,R1,0,,,,,,1,Activated after deferral,9,8,,1,9,1,1,10,1,10,1,Corrected,10,VERIFIED,1
+500003-1-2,C1,R,500003,1,F4,R1,0,1:7,,,,,2,Activated at its scheduled step,2,0,,0,,0,0,,0,,,Active at end of run,,,0
+500003-1-3,C1,R,500003,1,F1,R2,0,6:8,free->blocked,,,,8,Activated at its scheduled step,8,0,,0,,0,0,,0,,,Active at end of run,,,0
+500003-1-1,C0,R,500003,1,F5,R1,0,,,,,,1,Activated after deferral,11,10,,0,,0,0,,0,,,Overwritten without correction,11,,0
+500003-1-2,C0,R,500003,1,F4,R1,0,1:7,,,,,2,Activated at its scheduled step,2,0,,0,,0,0,,0,,,Active at end of run,,,0
+500003-1-3,C0,R,500003,1,F1,R2,0,6:8,free->blocked,,,,8,Activated at its scheduled step,8,0,,0,,0,0,,0,,,Overwritten without correction,8,,0
+
+These lines show the instrument working; they are not results and are never compared.
+```
 
 ### 5.1 Things Stage 4 shows but does not decide [OBSERVATION]
 - In demonstration run 500001-1, two F2 faults move C1's believed object two cells west of the true object. C1 then finds no plan within its budget and moves back and forth (the known behaviour of Stage 3 plan 5.6) for 100 steps, with **no mismatch**: its footprint never covers the true object. This is the "noticing is the hard part" limitation of 12.7.2, seen in practice. It is not a bug, and nothing is changed because of it (C1 is frozen; Phase A 9.3).
@@ -531,18 +614,121 @@ Using Stage 3 DEMO (agent (3, 3), object (5, 3), destination (8, 3)) unless stat
 - **IE-T1** (invariant 2, instrumentation disabled): both Stage 3 C1 demonstrations give exactly the Stage 3 5.5 lines and evaluation counts, and C0 gives identical results on the FR4 worlds.
 - **IE-T2** (invariant 2, instrumentation enabled): the same, with an empty-list fault injector on the hook (4c), and also with the counting observer on H3 and H4 (added in 4e).
 
-### 6.6 Scoring (`test_scorer.cpp`, `test_shadow.cpp`) — 4d, 4e
-Fixed in plan v1.2. They will include at least:
-- the injected-F1 run of 3.6, scored by hand: activated at step 1; effective use in the committed prediction at step 1 (predicted Moved, shadow Blocked), so a revealing opportunity; mismatch at step 2 caused by the event, label S2 correct; claim at step 2 (correction 1, wall (4, 3) blocked, true value) → strict detection at step 2, delay 1; correction VERIFIED at step 7 → verified correction; end state Corrected (VERIFIED); 0 false alarms;
-- a false alarm (a hand-made wrong correction with no fault), a wrong accepted correction, an "overwritten without correction" value fault, and a REJECTED correction that reactivates its event;
-- a claim made in phase A of the event's own activation step (not a detection: the event was not yet active);
-- for each type, one computation with and one without effective use, including a dead-status read and a heuristic value;
-- **IE-T3** (invariant 3): with the counting observer, observed evaluations = `totalEvaluations()` for every Stage 3 demonstration and every demonstration-experiment run, C1 and C0;
-- **IE-T4** (primary scoring independent of opportunity accounting, 3.9): the demonstration experiment scored with the observer disabled and enabled gives identical M2, M3, M4, M5 and M6 values;
-- the demonstration experiment's exact event and run records.
+### 6.6 Scoring (`test_scorer*.cpp` in 4d, `test_shadow*.cpp` in 4e) *(exact values added in v1.2)*
 
-### 6.7 CSV (`test_csv_output.cpp`) — 4f
-Fixed in plan v1.2: exact header lines; exact rows for the demonstration runs; empty fields; `writeTextFile` writes, reads back, and deletes one file; a failing path returns false.
+**4d (records, claims, event life, committed-prediction shadow; no observers yet):**
+- **SC1** (the injected-F1 run of 3.6, FR1): event `demo-1` activated at step 1; revealing opportunity (the committed prediction at step 1 predicts Moved; its shadow, with the wall at (4, 3), predicts Blocked); mismatch record at step 2, caused by the event, suspected S2, label correct (1 of 1); claim 1 (wall (4, 3) blocked) at step 2, true value → strict detection at step 2, detection delay 1; end state Corrected at step 2 by record 1, final status VERIFIED → verified correction; claims 1, false alarms 0, wrong accepted 0, justified safe stops 0.
+- **SC2** (a false alarm and a possible-bug mismatch): Stage 3 demonstration 2 run with **no** events (the wrong belief is hand-written, not injected): claims 1, false alarms 1, wrong accepted 0, mismatches 1, mismatches without fault cause 1, labels scored 0. *(This is the expected result for this deliberate diagnostic test: the scorer only knows about injected faults, so a hand-written error looks like an unexplained mismatch. In the experiment every intended error is injected, so a mismatch without a fault cause is not expected; **if one ever occurs, it is counted, reported and investigated as a possible bug (Phase A 8.4)**, never ignored or assumed impossible.)*
+- **SC3** (`claimValueIsTrue`): a wall claim blocked at (4, 3) is true for true world D2 and false for D; a model claim is always true; a trap claim for (1, 1) in D is true, for (5, 3) false. Object claim, with true history o1 = D, o2 = D with the agent at (4, 3) (East, Moved), o3 = D with the agent at (5, 3) and the object at (6, 3) (East, Pushed), and a latest mismatch record at decision step 3: value (5, 3) is true, value (6, 3) is false (D-042).
+- **SC4** (the event life, driven by hand). C1 on true world D2 with the correct belief; a scorer with one event E: F1 at (4, 3), blocked→free, step 2. The test calls the scorer itself, changing the agent's state by hand between calls (the run loop is not used):
+  1. step 1: `endPhaseA(view, 1)`; `afterActivation(view, records with E Scheduled, 1)`; `afterDecide(view, an action decision)` with no committed prediction;
+  2. step 2, phase A: add correction record 1 (wall (4, 3), blocked, CONSISTENT) → `endPhaseA(view, 2)`: **false alarm 1** (E is not yet active, so this is not a detection);
+  3. set the belief's (4, 3) to free and E's record to Applied at 2 → `afterActivation(view, records, 2)`: E activated at 2, active; then `afterDecide(view, an action decision)`;
+  4. step 3: add record 2 (wall (4, 3), blocked) and set the belief's (4, 3) to blocked → `endPhaseA(view, 3)`: strict detection at 3; E Corrected at 3 by record 2; false alarms still 1; then `afterActivation(view, records, 3)` and `afterDecide(view, an action decision)`;
+  5. step 4: set record 2 to REJECTED and the belief's (4, 3) back to free → `endPhaseA(view, 4)`: E is **active again** (no end state); `afterActivation(view, records, 4)`; `afterDecide(view, a safe-stop decision)`: justified safe stops 1;
+  6. `endFinalCheck(view)`: E is "Active at end of run", strict detection still at step 3; claims 2, false alarms 1, wrong accepted 0.
+- **SC5** (the demonstration experiment, C1 and C0, every column except Opportunity, which 4e adds): exactly the two tables below.
+- **SC6**: scoring never changes the run: the demonstration experiment's FR2 and FR3 values are unchanged with the scorer attached.
+
+**4e (shadow evaluation through the observers):**
+- **SH1** (one computation with and one without effective use, per kind). Each is a scorer function call with a hand-built belief and an activated event:
+  - F1 at (4, 3), blocked→free, belief = D2 without the wall: an own-model evaluation of East from the belief is effective (Moved against the shadow's Blocked); North is not.
+  - F2 with belief = D with the object at (5, 2) (true object (5, 3)): East from the belief with the agent at (4, 2) is effective (Pushed against Moved); West from the same state is not. A state with the agent at (5, 3) and the object at (5, 2) has an invalid shadow (object on the agent), so any evaluation from it is effective.
+  - F3 East-right on D with the agent at (4, 3): an own-model East evaluation is effective; the same as a variant (standard rule) is not; West is not.
+  - F4 at (1, 1) on D: a dead-status read of (1, 1) (stored "not dead", shadow "dead") is effective; a read of (2, 2) is not. A heuristic value for the state with the object at (1, 1) and the agent at (3, 3) is effective (12 against the shadow's infinite value).
+- **SH2 / IE-T2 with the observer**: with a counting observer attached on H3 and H4 and an empty event list, both Stage 3 C1 demonstrations and the C0 FR4 runs give exactly the same lines and results as without it.
+- **SH3 / IE-T3**: with the counting observer, observed evaluations equal `totalEvaluations()` for both Stage 3 C1 demonstrations, the C0 FR4 runs, and all 16 demonstration-experiment runs.
+- **SH4 / IE-T4**: the demonstration experiment scored with the observer disabled and enabled gives identical strict detection steps, end states and steps, correction statuses, mismatch steps, claims, false alarms and wrong accepted corrections, for every event and run.
+- **SH5**: the Opportunity column of the table below (first effective use, from activation until the fault ends or the run ends).
+- **SH6** (each of the six dead-status read sites is observed; *added at ChatGPT's review of v1.2*). With a recording observer on the map, and the true map of D (no overrides) unless stated, every reported value equals the map's stored status, and:
+  1. **heuristic**: `heuristic` for D's start state reports one read, (5, 3) not dead, and the heuristic value 4;
+  2. **planner pruning**: `search` on D (as PL1) reports at least one read, every one of them for a successor state's object cell;
+  3. **safety rule / active-test estimate** (`single_agent_choose.cpp`): `chooseCautiousAction` on a C1 built on D (as C1-6a) reports a read of (5, 3), not dead;
+  4. **consequence check**: `checkConsequence` on D reports exactly two reads, in this order: (5, 3) not dead (its own read of the object cell), then (5, 2) not dead (from the local check), and returns FullStateDeadEnd;
+  5. **local check**: `localCheckSaysNotDead(D, map, (5, 3))` reports exactly one read, (5, 2) not dead;
+  6. **trap verification**: `trapV2Test` at (5, 3) on D (as VF9) reports a read of (6, 3), not dead, and returns Rejected.
+
+  **Deliberate failure check for 4e**: in `localCheckSaysNotDead`, read `map.dead` directly instead of through `readDeadStatus`. Then SH6.5 and SH6.4 must fail, and nothing else changes behaviour.
+
+**The demonstration experiment's exact scores** (from the reference; "—" means none or not applicable; C0 commits no predictions, so its Revealing is always 0; 500001-1-3 in C1 is not activated):
+
+| Event | Cond | Activated | Opportunity | Revealing | Mismatch | Strict | End state | Status |
+|---|---|---|---|---|---|---|---|---|
+| 500000-1-1 | C1 | 4 | — | 0 | — | — | Active at end | — |
+| 500000-1-2 | C1 | 6 | — | 0 | — | — | Active at end | — |
+| 500000-1-3 | C1 | 10 | — | 0 | — | — | Active at end | — |
+| 500000-1-1 | C0 | 4 | — | 0 | — | — | Overwritten (4) | — |
+| 500000-1-2 | C0 | 6 | — | 0 | — | — | Active at end | — |
+| 500000-1-3 | C0 | 10 | — | 0 | — | — | Active at end | — |
+| 500000-2-1 | C1 | 2 | — | 0 | — | — | Active at end | — |
+| 500000-2-2 | C1 | 9 | 9 | 1 | 10 | 10 | Corrected (10) | CONSISTENT |
+| 500000-2-3 | C1 | 10 | — | 0 | — | — | Active at end | — |
+| 500000-2-1 | C0 | 2 | — | 0 | — | — | Overwritten (2) | — |
+| 500000-2-2 | C0 | 9 | — | 0 | — | — | Overwritten (10) | — |
+| 500000-2-3 | C0 | 10 | — | 0 | — | — | Active at end | — |
+| 500001-1-1 | C1 | 4 | 4 | 0 | — | — | Active at end | — |
+| 500001-1-2 | C1 | 6 | 6 | 0 | — | — | Active at end | — |
+| 500001-1-3 | C1 | — | — | — | — | — | — | — |
+| 500001-1-1 | C0 | 4 | — | 0 | — | — | Overwritten (4) | — |
+| 500001-1-2 | C0 | 6 | — | 0 | — | — | Overwritten (6) | — |
+| 500001-1-3 | C0 | 15 | — | 0 | — | — | Overwritten (15) | — |
+| 500001-2-1 | C1 | 2 | 4 | 0 | — | — | Active at end | — |
+| 500001-2-2 | C1 | 4 | 4 | 1 | 12 | 12 | Corrected (12) | VERIFIED |
+| 500001-2-3 | C1 | 10 | — | 0 | — | — | Active at end | — |
+| 500001-2-1 | C0 | 2 | — | 0 | — | — | Overwritten (2) | — |
+| 500001-2-2 | C0 | 4 | — | 0 | — | — | Overwritten (4) | — |
+| 500001-2-3 | C0 | 10 | — | 0 | — | — | Active at end | — |
+| 500002-1-1 | C1 | 3 | 11 | 0 | — | — | Active at end | — |
+| 500002-1-2 | C1 | 6 | — | 0 | — | — | Active at end | — |
+| 500002-1-3 | C1 | 7 | 7 | 0 | — | — | Active at end | — |
+| 500002-1-1 | C0 | 3 | 11 | 0 | — | — | Active at end | — |
+| 500002-1-2 | C0 | 6 | — | 0 | — | — | Active at end | — |
+| 500002-1-3 | C0 | 7 | — | 0 | — | — | Overwritten (7) | — |
+| 500002-2-1 | C1 | 5 | 11 | 0 | — | — | Active at end | — |
+| 500002-2-2 | C1 | 8 | 11 | 0 | — | — | Active at end | — |
+| 500002-2-3 | C1 | 12 | 12 | 1 | 15 | 15 | Corrected (15) | VERIFIED |
+| 500002-2-1 | C0 | 5 | 11 | 0 | — | — | Active at end | — |
+| 500002-2-2 | C0 | 8 | 11 | 0 | — | — | Active at end | — |
+| 500002-2-3 | C0 | 12 | — | 0 | — | — | Overwritten (12) | — |
+| 500003-1-1 | C1 | 9 | 9 | 1 | 10 | 10 | Corrected (10) | VERIFIED |
+| 500003-1-2 | C1 | 2 | — | 0 | — | — | Active at end | — |
+| 500003-1-3 | C1 | 8 | — | 0 | — | — | Active at end | — |
+| 500003-1-1 | C0 | 11 | — | 0 | — | — | Overwritten (11) | — |
+| 500003-1-2 | C0 | 2 | — | 0 | — | — | Active at end | — |
+| 500003-1-3 | C0 | 8 | — | 0 | — | — | Overwritten (8) | — |
+| 500003-2-1 | C1 | 1 | 1 | 1 | 8 | 8 | Corrected (8) | REJECTED |
+| 500003-2-2 | C1 | 9 | 10 | 0 | — | — | Active at end | — |
+| 500003-2-3 | C1 | 10 | 10 | 1 | 12 | 12 | Corrected (12) | VERIFIED |
+| 500003-2-1 | C0 | 1 | 1 | 0 | — | — | Active at end | — |
+| 500003-2-2 | C0 | 9 | 10 | 0 | — | — | Active at end | — |
+| 500003-2-3 | C0 | 10 | 10 | 0 | — | — | Active at end | — |
+
+| Run | Cond | Justified safe stops | Mismatches | Without fault cause | Labels correct / scored | Claims | False alarms | Wrong accepted |
+|---|---|---|---|---|---|---|---|---|
+| 500000-1 | C1 | 0 | 0 | 0 | 0 / 0 | 0 | 0 | 0 |
+| 500000-1 | C0 | 0 | 0 | 0 | 0 / 0 | 0 | 0 | 0 |
+| 500000-2 | C1 | 0 | 1 | 0 | 1 / 1 | 1 | 0 | 0 |
+| 500000-2 | C0 | 0 | 0 | 0 | 0 / 0 | 0 | 0 | 0 |
+| 500001-1 | C1 | 0 | 0 | 0 | 0 / 0 | 0 | 0 | 0 |
+| 500001-1 | C0 | 0 | 0 | 0 | 0 / 0 | 0 | 0 | 0 |
+| 500001-2 | C1 | 0 | 1 | 0 | 1 / 1 | 1 | 0 | 0 |
+| 500001-2 | C0 | 0 | 0 | 0 | 0 / 0 | 0 | 0 | 0 |
+| 500002-1 | C1 | 0 | 0 | 0 | 0 / 0 | 0 | 0 | 0 |
+| 500002-1 | C0 | 0 | 0 | 0 | 0 / 0 | 0 | 0 | 0 |
+| 500002-2 | C1 | 0 | 1 | 0 | 1 / 1 | 1 | 0 | 0 |
+| 500002-2 | C0 | 0 | 0 | 0 | 0 / 0 | 0 | 0 | 0 |
+| 500003-1 | C1 | 0 | 1 | 0 | 1 / 1 | 1 | 0 | 0 |
+| 500003-1 | C0 | 0 | 0 | 0 | 0 / 0 | 0 | 0 | 0 |
+| 500003-2 | C1 | 0 | 2 | 0 | 2 / 2 | 2 | 0 | 0 |
+| 500003-2 | C0 | 0 | 0 | 0 | 0 / 0 | 0 | 0 | 0 |
+
+### 6.7 CSV (`test_csv_output.cpp`) — 4f *(exact values added in v1.2)*
+- **CSV1**: `runCsvHeader()` and `eventCsvHeader()` are exactly the two header lines of Section 5.
+- **CSV2**: the four `runs.csv` rows and the twelve `events.csv` rows of Section 5 are produced exactly, for runs 500000-2 and 500003-1, C1 and C0.
+- **CSV3**: an event that is not activated has every measurement field empty (D-044): event 500001-1-3 with C1 gives exactly `500001-1-3,C1,R,500001,1,F5,R2,0,,,,,,8,Not activated: deferred, never applicable,,,the object has not moved yet,,,,,,,,,,,,`.
+- **CSV4**: `writeTextFile` writes a file in the current folder, reading it back gives the same text, and the test deletes it; a path inside a folder that does not exist returns false.
+- **P2**: `currentStage()` returns 4.
+- **AD/FD**: the program output equals Section 5 exactly (170 lines).
 
 ---
 
@@ -558,9 +744,9 @@ As in Stages 1–3: **one sub-stage at a time**, each built, checked by the owne
 | — | — | **The owner approves IE-1** (3.12, D-041): **done, October 20, 2026** | | |
 | 4 | **4c** applying faults and the run with faults | `fault_injector.*`, `fault_run.*`, H1, H2, tests | FI1–FI8, FR1–FR6, IE-T1, IE-T2 | Yes: on A3's agent-square check |
 | — | — | **Plan v1.2**: exact scoring values, CSV text and program output, from the reference; ChatGPT reviews; the owner approves v1.2 **and D-038** | | |
-| 5 | **4d** scoring I and II | `scorer*`, tests | 6.6 (records and claims) | Yes: on the phase of a claim |
-| 6 | **4e** shadow evaluation | `shadow.*`, H3, H4, tests | 6.6 (effective use), IE-T2 with the observer, IE-T3, IE-T4 | Yes: on one status-read site |
-| 7 | **4f** CSV, demonstration, stage number, documentation | `csv_output.*`, `fault_demo.*`, `main.cpp`, `project_info.cpp`, README, DECISIONS | 6.7; **program output matches plan v1.2 exactly** | — |
+| 5 | **4d** scoring I and II | `scorer*`, `fault_run.*` (calls the scorer), tests | SC1–SC6 | Yes: on the phase of a claim |
+| 6 | **4e** shadow evaluation | `computation_observer.h`, `shadow.*`, H3, H4, tests | SH1–SH6 (with IE-T2, IE-T3, IE-T4) | Yes: on the local-check read site (SH6) |
+| 7 | **4f** CSV, demonstration, stage number, documentation | `csv_output.*`, `fault_demo.*`, `main.cpp`, `project_info.cpp`, README, DECISIONS | CSV1–CSV4, P2; **program output matches Section 5 exactly (170 lines)** | — |
 | 8 | — | Fresh-build check: reset the CMake cache, rebuild, no warnings, output and tests correct | | |
 | 9 | — | Owner verification gate (Section 10) | | |
 | 10 | — | Record, commit, and tag **`stage-4`** (owner only) | | |
@@ -596,6 +782,10 @@ git --no-pager diff --stat
 | D-038 | **Clarification of a frozen measurement definition (12.5.10, M4)**, not a change: a verified correction is a correction with the true value, made while the event was active, that later reached VERIFIED and was not REJECTED. It is fixed now, before any result exists, and it can never be revisited after results are seen. **Status: accepted by ChatGPT (review of v1.0). Approved by the owner on October 20, 2026 ("yes I approve").** | 12.5.10 says "reached VERIFIED while e was active", but a correct correction ends the fault at CONSISTENT, so read literally M4 would always be zero. This keeps the intended meaning. | The literal reading (M4 always zero). |
 | D-039 | For object faults, the shadow changes a state's object only if it is at the reasoner's current wrong believed position. | "The true value" of the object is defined only for the present; inside a search it is not. | Shadowing whole searches (expensive, and still undefined after a hypothetical push). |
 | D-040 | Effective use is observed in model evaluations, heuristic values and dead-status reads, not in whole trap-analysis runs. | Phase A 4.3: an opportunity is a use "in a prediction or decision". | Comparing whole maps at each analysis run (counts F1 and F4 as used even when no decision depended on them). |
+| D-042 | *(v1.2)* An object claim's value is judged against the true object position just before the investigated action: the observation before the one checked in the latest mismatch record. | The claim is about that moment; C1's time-aware V1 checks exactly that. Judging it after the action would call correct corrections wrong after every push. | Judging against the current position (wrong after a push); judging only at the end of the run. |
+| D-043 | *(v1.2)* The evaluation observer reports the model used; the F1, F2 and F5 shadows repeat an evaluation with the same model. The dead-status read sites are six, including the local check. | A shadow must change only the faulted element. The local check reads statuses like the other five sites. | Repeating every evaluation with the reasoner's own model (wrong for variant evaluations). |
+| D-044 | *(v1.2)* In `events.csv`, events that were not activated have empty measurement fields. A Corrected event's status may be REJECTED when the fault did not come back (object corrections are never reverted). | Not-activated events are outside every denominator (Phase A 4.3); empty, not 0, keeps that visible. The REJECTED case is a consequence of Stage 3 plan 3.8, and is never counted as a verified correction. | 0 for every field (would look like a measured miss). |
+| D-045 | *(v1.2)* The final check after the last world action is dated to the last decision step, as a phase after its phase B. | It belongs to no new decision step; C1's own records date it the same way. | A step T + 1 (would count a decision step that never happened). |
 | D-041 | **Instrumentation exception IE-1** (plan 3.12): `stage-3` unchanged; exactly H1–H4 with their permitted behaviour; changes to decisions, planning, verification, corrections, cache semantics and budget accounting prohibited; invariants 1–3 (353 checks; identical Stage 3 output with instrumentation on and off; observed evaluations = budget counter) proved at 4c and 4e; any later instrumentation change recorded separately and rechecked. **Approved by the owner on October 20, 2026 ("yes I approve"), before 4c.** | Phase A 3 allows C1 changes only for genuine bugs; H1–H4 are not bug fixes, so they need an explicit, narrow exception (ChatGPT, review of v1.0). The protocol requires the activation point (11.3 step 4) and shadow evaluation (12.4). | Copying C1 into the scorer (two copies could drift apart); treating H1–H4 as outside the frozen rule (rejected by ChatGPT). |
 
 ---
@@ -643,7 +833,7 @@ One prompt file per sub-stage (`stage_4a_prompt.txt` … `stage_4f_prompt.txt`),
 
 **Code and documentation**
 - [ ] No exceptions; no inheritance; functions under about 40 lines; files under about 200 lines (or a recorded reason).
-- [ ] Header blocks and beginner comments (9.1); README matches 9.2; DECISIONS.md contains D-030 to D-041.
+- [ ] Header blocks and beginner comments (9.1); README matches 9.2; DECISIONS.md contains D-030 to D-045.
 - [ ] The owner can explain the items in Section 11.
 
 ---
@@ -668,6 +858,7 @@ One prompt file per sub-stage (`stage_4a_prompt.txt` … `stage_4f_prompt.txt`),
 ```
 Owner approval of IE-1: 2026-10-20, "yes I approve" (after Claude's plain explanation)
 Owner approval of D-038: 2026-10-20, "yes I approve" (same message)
+Owner approval of v1.2.1 (D-042 to D-045, SC2): 2026-10-20, rule by rule, after scenarios in his own terms (see the Status row)
 Date completed:
 Commit tagged stage-4:
 Total number of checks in the final test run:
@@ -701,12 +892,21 @@ Every point is an implementation reading of the frozen protocol, not a change to
 10. Layout generation in Stage 4 rather than Stage 7, because the event details depend on the layouts.
 11. Two-reasoner scoring (OBJECTION and SAFE_STOP claims, M2b, M9, A1, I1) waits for Stage 6; the Stage 4 scorer works per reasoner, so Stage 6 can give it two.
 
+**New in v1.2, for review before 4d:**
+12. D-042: the true value of an object claim, judged at the moment the claim is about.
+13. D-043: the observer reports the model used; six dead-status read sites (the plan said five; the local check is the sixth).
+14. D-044: empty fields for events not activated; a Corrected event may carry the status REJECTED.
+15. D-045: the final check is dated to the last decision step.
+16. SC2: a hand-written (not injected) wrong belief is scored as a false alarm plus a mismatch without fault cause. Is this the intended behaviour of 12.5.9 and Phase A 8.4 for such a test run? (In the experiment every intended error is injected, so such a mismatch is not expected; any that occurs is reported and investigated as a possible bug.)
+
 ---
 
 ## Revision history of this plan
 
 | Version | Date | Change |
 |---|---|---|
+| 1.2.1 | 2026-10-20 | **Approved by the owner, rule by rule.** After ChatGPT's approval of v1.2 (subject to owner approval and three clarifications): SH6 tests each of the six dead-status read sites, with the 4e deliberate failure check on the local check; mismatches without a fault cause are never called impossible (reported and investigated as possible bugs). Section 9 was checked: it contains one README paragraph and one EXPERIMENT_LOG paragraph, so no change was needed there. |
+| 1.2 | 2026-10-20 | Draft for ChatGPT's review. Sub-stages 4a–4c complete (485 checks). Added: the exact Stage 4 program output (170 lines; Section 5); the scorer, observer and CSV interfaces (4.2); exact scoring tests SC1–SC6, SH1–SH5 and CSV1–CSV4 with the demonstration experiment's scores (6.6, 6.7); readings D-042 to D-045; H3 reports the model used and H4 has six read sites (3.12). Values from the scoring reference `ref_score.py`. |
 | 1.1.1 | 2026-10-20 | Clarification found while writing the 4c prompt (no rule change): the activation point runs once in **every** decision step, including a C1 step that ends in the step-3 safe stop (3.6, 3.12 H1). The reference was changed to match; the demonstration values are unchanged. The Stage 4 reference's dead-square map now follows the current belief at every use, as the C++ cache does (values unchanged). |
 | 1.1 | 2026-10-20 | **Approved by the owner, with IE-1 and D-038.** After ChatGPT's review (4a, 4b approved; 4c conditional): 3.12 rewritten as the explicit instrumentation exception IE-1 with its seven conditions; D-038 recorded as a clarification of a frozen definition, owner approval required before 4d; primary scoring shown independent of opportunity accounting (3.9, IE-T4); per-reasoner data and provenance kept for Stage 6; tests IE-T1 to IE-T4; scoring-values plan renumbered v1.2. |
 | 1.0 | 2026-10-20 | First draft for ChatGPT's review. Exact values for 4a–4c from the reference; scoring values, CSV text and program output to follow in v1.2 (originally announced as v1.1). |
