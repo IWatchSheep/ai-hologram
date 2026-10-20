@@ -37,6 +37,7 @@ add_library(ai_hologram_core STATIC
     src/agent/dead_squares.cpp
     src/agent/heuristic.h
     src/agent/heuristic.cpp
+    src/agent/computation_observer.h
     src/agent/step_predictor.h
     src/agent/step_predictor.cpp
     src/agent/records.h
@@ -106,6 +107,9 @@ add_library(ai_hologram_core STATIC
     src/experiment/scorer.cpp
     src/experiment/scorer_life.cpp
     src/experiment/scorer_commit.cpp
+    src/experiment/scorer_observe.cpp
+    src/experiment/shadow.h
+    src/experiment/shadow.cpp
 )
 
 # Tell this target and its users to search src/ when resolving project headers.
@@ -169,6 +173,12 @@ add_executable(ai_hologram_tests
     tests/test_scorer.cpp
     tests/test_scorer_life.cpp
     tests/test_scorer_demo.cpp
+    tests/test_shadow.cpp
+    tests/test_shadow_more.cpp
+    tests/test_shadow_sites.cpp
+    tests/test_shadow_sites_more.cpp
+    tests/test_shadow_runs.cpp
+    tests/test_shadow_runs_demo.cpp
 )
 
 # Linking lets the test program call functions from the shared core library.

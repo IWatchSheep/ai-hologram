@@ -5,9 +5,11 @@
 // that is recreated at the start of every decision step (plan 3.4). The
 // planner and all later checks obtain successor states only through it,
 // so no successor state is ever created "for free" (protocol 10.7).
+// Stage 4 IE-1 H3 addition: an optional watch-only observer pointer.
 
 #pragma once
 
+#include "agent/computation_observer.h"
 #include "model/budget_counter.h"
 #include "model/prediction.h"
 #include "model/world_model.h"
@@ -64,6 +66,8 @@ public:
                                              Action action,
                                              const ActionModel& model);
 
+    void setObserver(const ComputationObserver* observer);
+
     // Empties the cache, for when the model or the trap overrides change
     // (the cached results may no longer match what would be predicted).
     void clearCache();
@@ -97,6 +101,7 @@ private:
     Position cacheDestination_{0, 0};
 
     int usedTotal_ = 0;
+    const ComputationObserver* observer_ = nullptr;
 };
 
 }  // namespace ai_hologram

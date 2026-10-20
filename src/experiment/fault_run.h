@@ -29,6 +29,7 @@ struct FaultRunResult {
     std::vector<ActivationRecord> activations;
     std::vector<EventScore> eventScores;
     RunScore score;
+    int observedEvaluations = 0;
 };
 
 // Exactly the Stage 3 runSingleAgent loop for C1, plus three things:
@@ -39,12 +40,14 @@ struct FaultRunResult {
 FaultRunResult runWithFaults(const WorldState& trueInitialState,
                              SingleAgent& agent,
                              const AgentSettings& settings,
-                             const std::vector<FaultEvent>& events);
+                             const std::vector<FaultEvent>& events,
+                             bool observe = true);
 
 // The same for C0, exactly its Stage 3 loop (no final check).
 FaultRunResult runWithFaults(const WorldState& trueInitialState,
                              NaiveAgent& agent,
                              const AgentSettings& settings,
-                             const std::vector<FaultEvent>& events);
+                             const std::vector<FaultEvent>& events,
+                             bool observe = true);
 
 }  // namespace ai_hologram

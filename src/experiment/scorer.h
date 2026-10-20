@@ -101,6 +101,20 @@ public:
     // Records each Corrected event's final record status.
     void finish(const ScoredView& view);
 
+    // The live view used by the three callbacks below (Stage 4e).
+    // The view's pointers stay valid while the agent lives; the
+    // scorer only reads through them and never writes.
+    void attachView(const ScoredView& view);
+    // The watch-only observer callbacks (IE-1 H3/H4). Each looks
+    // only at activated, still-active events with no opportunity
+    // step yet, and records the first effective use (plan 3.9).
+    void onEvaluation(const WorldState& state, Action action,
+                      const ActionModel* variantModel,
+                      const Prediction& result);
+    void onDeadRead(Position cell, bool value);
+    void onHeuristic(const WorldState& state, int value);
+    int observedEvaluations() const;  // counts onEvaluation calls (IE-T3)
+
     const std::vector<EventScore>& events() const;
     const RunScore& run() const;
 
@@ -118,6 +132,9 @@ private:
     const std::vector<Observation>* trueHistory_;
     RunScore run_;
     int currentStep_ = 0;
+    ScoredView liveView_;
+    bool hasLiveView_ = false;
+    int observedEvaluations_ = 0;
     std::size_t seenCorrections_ = 0;
     std::size_t seenMismatches_ = 0;
     std::vector<int> committedCauses_;

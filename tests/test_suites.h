@@ -34,5 +34,11 @@ void runFaultRunTests(TestCounter& counter);
 void runScorerTests(TestCounter& counter);
 void runScorerLifeTests(TestCounter& counter);
 void runScorerDemoTests(TestCounter& counter);
+void runShadowTests(TestCounter& counter);
+void runShadowMoreTests(TestCounter& counter);
+void runShadowSiteTests(TestCounter& counter);
+void runShadowSiteMoreTests(TestCounter& counter);
+void runShadowRunTests(TestCounter& counter);
+void runShadowDemoTests(TestCounter& counter);
 
 }  // namespace ai_hologram

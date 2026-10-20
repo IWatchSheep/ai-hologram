@@ -7,6 +7,7 @@
 // budgeted evaluation. Everything else is evidence lookups in the
 // recorded history. Nothing here changes a belief: the decision
 // step (sub-stage 3e) applies updates and creates records.
+// Stage 4 IE-1 H4 addition: the checkConsequence read goes through readDeadStatus.
 
 #include "agent/investigation.h"
 #include "agent/footprint.h"
@@ -172,8 +173,7 @@ ConsequenceOutcome checkConsequence(
     const std::vector<Observation>& history, FreeComputationCounts& counts) {
     const Position p = belief.object;
     if (!isInsideGrid(p)) return ConsequenceOutcome::NotApplicable;
-    const bool dead = map.dead[static_cast<std::size_t>(p.y)]
-                              [static_cast<std::size_t>(p.x)];
+    const bool dead = readDeadStatus(map, p);
     // B: only a cell believed neither dead nor the destination can
     // be a surprise at all. (For use after an Exhausted search; the
     // search itself is the caller's, in sub-stage 3e.)

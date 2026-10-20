@@ -4,9 +4,11 @@
 // Architecture: This is one of the free computations of protocol 10.7. It
 // looks at object cells only, never builds agent-object states and never
 // calls any model, so it is not charged to the budget counter.
+// Stage 4 IE-1 H4 addition: a watch-only observer is carried by the map.
 
 #pragma once
 
+#include "agent/computation_observer.h"
 #include "world/world_state.h"
 
 #include <array>
@@ -22,6 +24,7 @@ namespace ai_hologram {
 struct DeadSquareMap {
     std::array<std::array<bool, gridSize>, gridSize> dead{};
     std::array<std::array<int, gridSize>, gridSize> pushDistance{};
+    const ComputationObserver* observer = nullptr;
 };
 
 // Counters for the free computations (protocol 10.7, plan 3.3). These are
@@ -47,6 +50,11 @@ DeadSquareMap computeDeadSquares(const WorldState& belief,
                                  const std::vector<Position>& deadCorrections,
                                  FreeComputationCounts& counts);
 
+// Reads one cell's stored dead status. Returns exactly the stored
+// value and, when an observer is attached, reports (cell, value) to
+// it first. This is a watch-only report: it changes nothing.
+bool readDeadStatus(const DeadSquareMap& map, Position cell);
+
 // The free one-cell check of protocol 11.4 B: true when `cell` is the
 // destination, or some direction has both neighbours believed free and
 // the far neighbour not dead. It never reads the stored status of `cell`.
@@ -65,6 +73,7 @@ struct DeadSquareCache {
                              FreeComputationCounts& counts);
 
     DeadSquareMap map{};
+    const ComputationObserver* observer = nullptr;
 
 private:
     bool hasCachedMap_ = false;

@@ -34,6 +34,9 @@ int main() {
     ai_hologram::runScorerTests(counter);
     ai_hologram::runScorerLifeTests(counter);
     ai_hologram::runScorerDemoTests(counter);
+    ai_hologram::runShadowTests(counter);
+    ai_hologram::runShadowSiteTests(counter);
+    ai_hologram::runShadowRunTests(counter);
 
     std::cout << counter.checks << " checks, " << counter.failures << " failures\n";
     return counter.failures == 0 ? 0 : 1;

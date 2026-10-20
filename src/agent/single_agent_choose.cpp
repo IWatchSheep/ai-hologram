@@ -3,6 +3,7 @@
 // Introduced in Stage 3.
 // Architecture: Split from single_agent.cpp for length. Every successor
 // state here comes from the StepPredictor, never from the rules directly.
+// Stage 4 IE-1 H4 addition: the objectDead read goes through readDeadStatus.
 
 #include "agent/agent_log.h"
 #include "agent/heuristic.h"
@@ -21,9 +22,7 @@ int manhattan(Position first, Position second) {
 }
 
 bool objectDead(const WorldState& state, const DeadSquareMap& map) {
-    return isInsideGrid(state.object) &&
-           map.dead[static_cast<std::size_t>(state.object.y)]
-                   [static_cast<std::size_t>(state.object.x)];
+    return isInsideGrid(state.object) && readDeadStatus(map, state.object);
 }
 const std::array<Action, 4> kOrder = {Action::North, Action::East,
                                       Action::South, Action::West};

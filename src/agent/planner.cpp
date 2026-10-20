@@ -4,6 +4,7 @@
 // obtains every successor state from the StepPredictor, never from the
 // rules directly, so every state it examines (apart from the root) has
 // been paid for with exactly one budgeted model evaluation.
+// Stage 4 IE-1 H4 addition: the pruning read goes through readDeadStatus.
 
 #include "agent/planner.h"
 #include "agent/heuristic.h"
@@ -71,8 +72,7 @@ int findDiscovered(const SearchResult& result, const WorldState& state) {
     return -1;
 }
 bool objectOnDeadSquare(const WorldState& state, const DeadSquareMap& map) {
-    return map.dead[static_cast<std::size_t>(state.object.y)]
-                   [static_cast<std::size_t>(state.object.x)];
+    return readDeadStatus(map, state.object);
 }
 
 // Builds the plan from the root to discovered[stateIndex] by following

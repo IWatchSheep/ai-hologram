@@ -10,6 +10,7 @@
 #include "experiment/fault_run.h"
 
 #include "agent/agent_log.h"
+#include "agent/computation_observer.h"
 #include "experiment/scorer.h"
 #include "world/environment.h"
 
@@ -49,6 +50,8 @@ FaultRunResult finishRun(SingleAgent& agent, FaultInjector& injector,
                          Scorer& scorer,
                          const std::string& outcome, int worldSteps) {
     agent.state.activationHook = std::function<void(int)>{};
+    agent.state.predictor.setObserver(nullptr);
+    agent.state.deadCache.observer = nullptr;
     scorer.finish(viewOf(agent.state));
     FaultRunResult result;
     result.run = buildRunResult(outcome, worldSteps, agent.safeStopCount(),
@@ -60,6 +63,7 @@ FaultRunResult finishRun(SingleAgent& agent, FaultInjector& injector,
     result.activations = injector.records();
     result.eventScores = scorer.events();
     result.score = scorer.run();
+    result.observedEvaluations = scorer.observedEvaluations();
     return result;
 }
 
@@ -68,6 +72,8 @@ FaultRunResult finishRun(NaiveAgent& agent, FaultInjector& injector,
                          Scorer& scorer,
                          const std::string& outcome, int worldSteps) {
     agent.state.activationHook = std::function<void(int)>{};
+    agent.state.predictor.setObserver(nullptr);
+    agent.state.deadCache.observer = nullptr;
     scorer.finish(viewOf(agent.state));
     FaultRunResult result;
     result.run = buildRunResult(outcome, worldSteps, 0, 0, 0, 0,
@@ -76,6 +82,7 @@ FaultRunResult finishRun(NaiveAgent& agent, FaultInjector& injector,
     result.activations = injector.records();
     result.eventScores = scorer.events();
     result.score = scorer.run();
+    result.observedEvaluations = scorer.observedEvaluations();
     return result;
 }
 
@@ -83,16 +90,46 @@ Observation nextObservation(const WorldState& state, int decisionStep) {
     return Observation{decisionStep, state, std::nullopt, std::nullopt};
 }
 
+// Attaches the watch-only observer (IE-1 H3/H4) to one agent for a
+// run with observe true. The observer only calls the scorer; the
+// agent reads nothing back from it, so it cannot pull (see
+// computation_observer.h on the camera and the chain).
+void attachObserver(Scorer& scorer, ComputationObserver& observer,
+                    const ScoredView& view, StepPredictor& predictor,
+                    DeadSquareCache& cache) {
+    scorer.attachView(view);
+    observer.onEvaluation = [&scorer](const WorldState& state,
+                                      const Action action,
+                                      const ActionModel* variant,
+                                      const Prediction& result) {
+        scorer.onEvaluation(state, action, variant, result);
+    };
+    observer.onDeadRead = [&scorer](const Position cell, const bool value) {
+        scorer.onDeadRead(cell, value);
+    };
+    observer.onHeuristic = [&scorer](const WorldState& state, const int value) {
+        scorer.onHeuristic(state, value);
+    };
+    predictor.setObserver(&observer);
+    cache.observer = &observer;
+}
+
 }  // namespace
 
 FaultRunResult runWithFaults(const WorldState& trueInitialState,
                              SingleAgent& agent,
                              const AgentSettings& settings,
-                             const std::vector<FaultEvent>& events) {
+                             const std::vector<FaultEvent>& events,
+                             const bool observe) {
     Environment environment(trueInitialState);
     std::vector<Observation> trueHistory;
     FaultInjector injector(events, &trueHistory);
     Scorer scorer(events, trueInitialState, &trueHistory);
+    ComputationObserver observer;
+    if (observe) {
+        attachObserver(scorer, observer, viewOf(agent.state),
+                       agent.state.predictor, agent.state.deadCache);
+    }
     agent.state.activationHook = [&scorer, &injector, &agent](int step) {
         scorer.endPhaseA(viewOf(agent.state), step);
         injector.atActivationPoint(partsOf(agent.state), step);
@@ -139,11 +176,17 @@ FaultRunResult runWithFaults(const WorldState& trueInitialState,
 FaultRunResult runWithFaults(const WorldState& trueInitialState,
                              NaiveAgent& agent,
                              const AgentSettings& settings,
-                             const std::vector<FaultEvent>& events) {
+                             const std::vector<FaultEvent>& events,
+                             const bool observe) {
     Environment environment(trueInitialState);
     std::vector<Observation> trueHistory;
     FaultInjector injector(events, &trueHistory);
     Scorer scorer(events, trueInitialState, &trueHistory);
+    ComputationObserver observer;
+    if (observe) {
+        attachObserver(scorer, observer, viewOf(agent.state),
+                       agent.state.predictor, agent.state.deadCache);
+    }
     agent.state.activationHook = [&scorer, &injector, &agent](int step) {
         scorer.endPhaseA(viewOf(agent.state), step);
         injector.atActivationPoint(partsOf(agent.state), step);

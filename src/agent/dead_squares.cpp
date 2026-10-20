@@ -4,6 +4,7 @@
 // Architecture: The analysis works backwards from the destination over
 // object cells only. It is a free but bounded computation (protocol
 // 10.7): at most 100 cells x 4 directions, no successor states, no model.
+// Stage 4 IE-1 H4 addition: dead-status reads are reported to a watch-only observer.
 //
 // A dead square is not the same as a full-state dead end (plan 3.3, 9.1).
 // A dead square says the OBJECT can never reach the destination from that
@@ -114,6 +115,15 @@ DeadSquareMap computeDeadSquares(const WorldState& belief,
     return map;
 }
 
+bool readDeadStatus(const DeadSquareMap& map, const Position cell) {
+    const bool value = map.dead[static_cast<std::size_t>(cell.y)]
+                                [static_cast<std::size_t>(cell.x)];
+    if (map.observer && map.observer->onDeadRead) {
+        map.observer->onDeadRead(cell, value);
+    }
+    return value;
+}
+
 bool localCheckSaysNotDead(const WorldState& belief, const DeadSquareMap& map,
                            const Position cell, FreeComputationCounts& counts) {
     ++counts.localChecks;
@@ -128,8 +138,7 @@ bool localCheckSaysNotDead(const WorldState& belief, const DeadSquareMap& map,
         const Position behind{cell.x - offset.x, cell.y - offset.y};
         const Position ahead{cell.x + offset.x, cell.y + offset.y};
         if (isBelievedFree(belief, behind) && isBelievedFree(belief, ahead) &&
-            !map.dead[static_cast<std::size_t>(ahead.y)]
-                     [static_cast<std::size_t>(ahead.x)]) {
+            !readDeadStatus(map, ahead)) {
             return true;
         }
     }
@@ -153,6 +162,7 @@ const DeadSquareMap& DeadSquareCache::get(
         cachedDeadCorrections_ = deadCorrections;
         hasCachedMap_ = true;
     }
+    map.observer = observer;
     return map;
 }
 

@@ -4,6 +4,7 @@
 // model evaluation made here (plan 3.4, protocol 10.7). This class is
 // the only place that calls WorldModel::predict for the reasoner, so
 // the number of model calls always equals the charged evaluations.
+// Stage 4 IE-1 H3 addition: charged evaluations are reported to a watch-only observer.
 
 #include "agent/step_predictor.h"
 
@@ -21,6 +22,10 @@ void StepPredictor::startStep() {
     // A brand-new counter: last step's unused budget is lost, not saved.
     budget_ = BudgetCounter(budgetPerStep_);
     clearCache();
+}
+
+void StepPredictor::setObserver(const ComputationObserver* observer) {
+    observer_ = observer;
 }
 
 void StepPredictor::clearCache() {
@@ -77,6 +82,9 @@ std::optional<Prediction> StepPredictor::predict(const WorldState& state,
         hasCacheContext_ = true;
     }
     cache_.push_back(CacheEntry{state.agent, state.object, action, *result});
+    if (observer_ && observer_->onEvaluation) {
+        observer_->onEvaluation(state, action, nullptr, *result);
+    }
     return result;
 }
 
@@ -94,6 +102,9 @@ std::optional<Prediction> StepPredictor::predictVariant(
         return std::nullopt;
     }
     ++usedTotal_;
+    if (observer_ && observer_->onEvaluation) {
+        observer_->onEvaluation(state, action, &model, *result);
+    }
     return result;
 }
 

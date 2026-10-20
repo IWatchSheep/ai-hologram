@@ -6,6 +6,7 @@
 // through the StepPredictor (see verification.h for which model
 // each one uses), so every successor state is paid for from the
 // step budget. These functions never change a belief themselves.
+// Stage 4 IE-1 H4 addition: the isDeadAt read goes through readDeadStatus.
 
 #include "agent/verification.h"
 #include "world/rules.h"
@@ -35,8 +36,7 @@ bool trapHistoryPasses(Position p, Position destination,
 }
 
 bool isDeadAt(const DeadSquareMap& map, Position cell) {
-    return map.dead[static_cast<std::size_t>(cell.y)]
-                   [static_cast<std::size_t>(cell.x)];
+    return readDeadStatus(map, cell);
 }
 
 }  // namespace
