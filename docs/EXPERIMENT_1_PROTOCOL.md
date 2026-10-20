@@ -4,12 +4,12 @@
 |---|---|
 | **Project** | AI Hologram (`ai-hologram` repository) |
 | **Document** | `docs/EXPERIMENT_1_PROTOCOL.md` |
-| **Version** | **v0.3 — Phase A (framework)** |
+| **Version** | **v0.6 — Phase A and Phase B approved** |
 | **Date** | October 19, 2026 |
-| **Status** | **PHASE A APPROVED — FRAMEWORK ONLY. COMPLETE PROTOCOL NOT FROZEN.** Approved on **October 19, 2026** by ChatGPT (independent review) and by the owner. Sections 1–9 are approved; Phases B and C (Sections 10–15) are still to be written, reviewed and approved. The approved Phase A definitions and thresholds **must not be changed** because of pilot performance or observed experimental results. The `protocol-1-approved` tag is reserved for the complete, frozen protocol. |
+| **Status** | **PHASE A APPROVED. PHASE B APPROVED. COMPLETE PROTOCOL NOT FROZEN.** Phase A (Sections 1–9) was approved on **October 19, 2026**, and Phase B (Sections 10–12) on **October 19, 2026**, each by ChatGPT (independent review) and by the owner. Phase C (Sections 13–15) is still to be written, reviewed and approved. The approved Phase A definitions and thresholds **must not be changed** because of pilot performance or observed experimental results. The `protocol-1-approved` tag is reserved for the complete, frozen protocol. |
 | **Governing specification** | `AI_Hologram_Project_Brief_v1.1.txt`, especially Sections 3, 4, 7, 11 and 12 |
 | **Required by** | Brief Section 10, "Definition gate": this protocol must be approved and frozen **before Stage 4** begins |
-| **Project state when written** | Stage 1 complete (tag `stage-1`, commit `72a11fe`). No reasoning code exists. **No experiment has been run.** |
+| **Project state when written** | Phase A: Stage 1 complete (tag `stage-1`, commit `72a11fe`). Phase B: Stage 2 complete (tag `stage-2`, commit `e112145`). No reasoning code exists. **No experiment has been run.** |
 
 ---
 
@@ -20,7 +20,7 @@ The protocol is written in three phases, each when it can be written accurately 
 | Phase | When | Content | Status |
 |---|---|---|---|
 | **A — Framework** | After Stage 1 | Sections 1–9 below | **APPROVED 2026-10-19** (not frozen) |
-| **B — Definitions and baseline behaviour** | After Stage 2; **before** `STAGE_03.md` is approved | Sections 10–12 (placeholders below) | Not started |
+| **B — Definitions and baseline behaviour** | After Stage 2; **before** `STAGE_03.md` is approved | Sections 10–12 below | **APPROVED 2026-10-19** (not frozen) |
 | **C — Numbers and freeze** | During Stage 3, before Stage 4 | Sections 13–15 (placeholders below) | Not started |
 
 Labels follow the brief: **[FACT]**, **[PROPOSAL]**, **[HYPOTHESIS]**, **[OPEN]**.
@@ -361,30 +361,487 @@ The final protocol is frozen and tagged **`protocol-1-approved`** **before** any
 
 ---
 
-## Phase B sections (placeholders; to be written after Stage 2)
+## Phase B sections (APPROVED 2026-10-19; not frozen)
+
+Phase B is written after Stage 2 (tag `stage-2`, commit `e112145`), so that its definitions match the reviewed code. It was approved on **October 19, 2026**, before `STAGE_03.md`. The approved Phase B definitions **must not be changed** because of pilot performance or observed results (as for Phase A). **[PROPOSAL]** labels inside Sections 10–12 mark the design as approved for Experiment 1. They do not mean the design has been shown to work. **Nothing in Sections 1–9 (Phase A) is changed.** Where Phase A says "exact definition: Phase B", the definition is given below.
 
 ### 10. Representations
-How states, beliefs, predictions and mismatches are represented, matching the reviewed Stage 2 code.
+
+#### 10.1 What already exists (Stage 2 code) — [FACT]
+| Concept | Code (tag `stage-2`) |
+|---|---|
+| True state of the world | `WorldState` (agent, object, destination, 10×10 walls), held only by `Environment` |
+| Validity | `isValidWorld` (one definition, `STAGE_01.md` 3.6) |
+| True rules | `applyAction` → `ActionResult { state, outcome }`, outcome ∈ {Moved, Pushed, Blocked, InvalidState} |
+| A reasoner's belief | `Belief { WorldState state; }` — a separate type from the true state |
+| A prediction | `Prediction { action, outcome, state }` |
+| Prediction machinery | `WorldModel::predict(belief, action, budget)` with a replaceable `ActionModel` (`std::function`) |
+| Budget | `BudgetCounter`: one model evaluation per prediction; refuses when exhausted |
+| Comparison | `compareStates` (every difference, fixed order), `comparePrediction`, `matches`, `describeDifferences` |
+
+#### 10.2 Observation — [PROPOSAL]
+- An **observation** is the exact `WorldState` after the most recent action, together with that action and its outcome. The first observation of a run is the initial state, with no action and no outcome.
+- Every reasoner in every condition receives the **same, complete observation** at every decision step (Brief 11.5.2). Nothing is hidden or delayed.
+- **History:** every reasoner keeps every observation it has received, exactly as received. Faults never change the history (F5 changes a belief, not the record).
+
+#### 10.3 Belief and how it is kept up to date — [PROPOSAL] *(revised in v0.5)*
+- A reasoner's initial belief is the **whole** first observation.
+- After that, a belief changes **only** in these four ways. Each change is logged with its cause.
+  1. **Footprint update after a matching check** (10.5). The check matched, so the predicted footprint contents equal the observed ones, and the update cannot change any belief value that was in the comparison.
+  2. **Correction**, through a correction record (11.4, 11.5). This is the only **deliberate** repair.
+  3. **Unexplained update.** After a mismatch, if no candidate passes V1, the reasoner must still bring its footprint into line with the observation to continue. Such an update is recorded as **unexplained**, never as a correction, and the mismatch is flagged as an anomaly.
+  4. **Injected fault** (Stage 4; Section 12).
+- A belief is **never silently overwritten** by an observation (Brief 11.5.1).
+- The scorer separates deliberate repair (2) from any other change that happens to restore a true value (12.3).
+
+#### 10.4 Belief elements (what a fault can affect and what a claim can name) — [PROPOSAL]
+| Element | Meaning | Fault types |
+|---|---|---|
+| `wall(x, y)` | Whether the reasoner believes cell (x, y) is blocked | F1 |
+| `object` | Where the reasoner believes the object is | F2, F5 |
+| `model(a)` | The reasoner's action model for action *a* | F3 |
+| `trap(p)` | Whether the reasoner's trap analysis classifies cell *p* as a **dead square**, as defined exactly in 11.2 | F4 |
+
+The agent's own position and the destination are not fault targets in Experiment 1 (Brief 11.3 lists no such faults).
+
+#### 10.5 The footprint of an action — [PROPOSAL] *(made fully deterministic in v0.5)*
+**Definition.** For action *a* taken at decision step *t*:
+- **c0** is the agent's cell in the reasoner's belief **before** acting.
+  - The agent's position is never a fault target, and it is always in the footprint, so without a bug this equals the agent's cell in the recorded observation *o_t−1*.
+  - If they ever differ, the step is flagged as an anomaly (a possible bug, Phase A 8.4), and the footprint is still built from the belief.
+- **c1** is c0 moved one cell in direction *a*.
+- **c2** is c1 moved one cell in direction *a*. It is included **if and only if** at least one of these holds:
+  - **(i)** the believed pre-action state has the object at c1;
+  - **(ii)** the observed outcome is Pushed;
+  - **(iii)** the observed post-action state has the object at c1. (This happens only when a push was blocked.)
+- Cells outside the grid count as walls, as in `isWall`.
+
+The **footprint** is these cells **plus the outcome**.
+
+**Footprint comparison.** For each footprint cell, compare:
+- whether it is a wall;
+- whether the agent is there;
+- whether the object is there.
+
+Compare these in the predicted post-action state and the observed post-action state, and compare the predicted and observed outcomes. The cells are chosen **before** comparing, from the belief and the observation only. They never depend on which architecture is running.
+
+**Comparing two reasoners' predictions** (Phase C) uses the same rule:
+- c0 and *a* are shared.
+- c2 is included if **either** reasoner's believed pre-action state has the object at c1, or **either** predicts Pushed.
+
+**Disagreement cases, worked out:**
+
+| Case | Footprint | What the comparison reports |
+|---|---|---|
+| Predicted Moved, observed Moved, beliefs right | c0, c1 | match |
+| Predicted Moved; observed Blocked by a true wall at c1 (believed free) | c0, c1 | outcome; wall at c1; agent at c0 vs c1 |
+| Predicted Blocked (believed wall at c1); observed Moved | c0, c1 | outcome; wall at c1; agent position |
+| Predicted Blocked (believed object at c1, c2 believed blocked); observed Pushed | c0, c1, c2 (i, ii) | outcome; agent position; object at c2; wall at c2 if believed |
+| Predicted Moved (object believed elsewhere); observed Pushed (true object at c1) | c0, c1, c2 (ii) | outcome; agent position; object at c2 |
+| Predicted Moved (object believed elsewhere); observed Blocked (true object at c1, c2 blocked) | c0, c1, c2 (iii) | outcome; object at c1; agent position |
+| Predicted Pushed (object believed at c1); observed Moved (no object there) | c0, c1, c2 (i) | outcome; object at c2 vs none |
+| Predicted and observed agent positions differ | follows from c0 and *a* as above | the agent-presence differences in c0 and c1 |
+
+[FACT, from the Stage 1 rules R1–R8, all tested] An action can change **only** the contents of c0, c1 and c2.
+- Walls and the destination never change.
+- The agent moves only from c0 to c1.
+- The object moves only from c1 to c2.
+
+[OBSERVATION, checked by simulation for this draft] Over 2,000 random valid worlds × 60 random actions, every change fell inside the footprint, and a fault-free reasoner that updated only its footprint kept an exactly correct belief.
+
+**Consequence:** a reasoner that updates its belief from the footprint after every step keeps an **exactly correct** belief whenever it has no fault. Stage 3 must test this (12.9).
+
+Stage 3 adds a footprint comparison built on the Stage 2 types. The full `compareStates` is kept for logging and for scoring.
+
+#### 10.6 Records — [PROPOSAL]
+Stage 3 introduces these records. Field names are fixed in `STAGE_03.md`.
+- **Mismatch record:**
+  - decision step and action;
+  - the prediction and the footprint differences;
+  - the candidate elements considered;
+  - the suspected source (S1–S5) and the evidence for it.
+- **Correction record:**
+  - identifier, element, old value and new value;
+  - status (PROPOSED, CONSISTENT, VERIFIED or REJECTED) and the step of each change;
+  - the evidence for V1 and V2.
+- **Claim record:** see 12.5.
+- **Step log:**
+  - the observation received and the check result;
+  - the plan or fallback choice, the action or safe stop, and the reason;
+  - model evaluations used (total, and for verification);
+  - counts of free computations (10.7).
+
+#### 10.7 Budget and free computations — [PROPOSAL] *(strengthened in v0.5)*
+**Model evaluations (budgeted).**
+- One model evaluation is one call of `WorldModel::predict` (Brief 11.5.3).
+- **Any operation that generates or evaluates a successor state** is a model evaluation and must go through the counter, whatever code performs it. A successor state is a state reached from a (state, action) pair, including a partial state such as agent and object positions.
+- **Every state the planner or any check examines must have been produced by a budgeted model evaluation.** The only exceptions are:
+  - the reasoner's current belief;
+  - recorded observations;
+  - the hypothetical **input** states built for the V2 test of a trap correction (11.5). Their predicted results are budgeted like any others.
+- **Budget per step:**
+  - Each reasoner has a budget per decision step: B in a one-reasoner condition, split by a fixed rule in a two-reasoner condition (Phase C).
+  - Unused budget is lost at the end of the step and is not carried over.
+- **Reuse.** A model evaluation already made in the same decision step, from the same belief, may be reused at no cost. C0's stored plan states are covered in 11.8.
+
+**Free computations (not budgeted, but counted and reported).** These are the only free computations allowed. Each has a fixed, bounded scope, and none may create a successor state.
+
+| Computation | Allowed scope | Bound | Counted as |
+|---|---|---|---|
+| **Comparisons** | Footprint comparison, `compareStates`, comparison of records | One comparison per pair of states compared | comparisons |
+| **Evidence lookups** | Reading cells or positions in the current observation or history, **only** during an investigation (11.4) | One lookup per element per recorded observation | lookups |
+| **Trap analysis** (11.2) | The relaxed reverse-push analysis over **object cells only** (100 cells): it never builds agent–object states. It gives each cell's dead-square status and relaxed push distance. | Run only when the believed walls change. At most 100 cells × 4 directions per pass, repeated until nothing changes (at most 100 passes). | analysis runs and cell operations |
+| **Dead-square local check** (11.4 B) | Re-checks the analysis rule at **one** cell, from the believed walls and the stored statuses of its four neighbours. | Only while investigating a consequence surprise; one cell, 4 directions | local checks |
+| **Heuristic** | A fixed formula combining **table lookups** from the latest trap analysis with straight-line (Manhattan) distances. No search and no loops over actions. | Called only on states already produced by a budgeted evaluation, so calls ≤ model evaluations | heuristic calls |
+
+**Equality across conditions:**
+- Every reasoner in every condition that uses a trap analysis or heuristic uses **exactly these definitions** (fixed in `STAGE_03.md`), with the same bounds.
+- Phase C may **not** add any other kind of free computation. So a two-reasoner condition gets no extra uncharged reasoning capacity: each of its reasoners has the same bounded free tools as C1, and both spend from the same total budget.
+- The counts in the table are reported per reasoner and per condition, so any difference in free computation is visible (Brief 11.5.3).
+
+---
 
 ### 11. Baseline behaviour (C0 and C1)
-The full behaviour of C0 and C1:
-- C1's predict → act → observe → compare → correct → replan loop;
-- its look-ahead;
-- safe stops and the stop limit's role;
-- mismatch-source labels (S1–S5);
-- two-part correction verification;
-- how it spends its per-step budget.
 
-**Must be approved before `STAGE_03.md` is approved.**
+#### 11.1 Shared rule for every condition: checks are triggered by use — [PROPOSAL]
+This rule applies to every reasoner in C0–C4. Phase C must apply it unchanged to C2–C4.
+1. **What is checked.**
+   - A reasoner checks its beliefs **through its predictions**: after acting, it compares its prediction with the observation **on the footprint** (10.5).
+   - In two-reasoner conditions, predictions are also compared with each other on the same footprint (Phase C).
+   - No reasoner continuously audits its whole belief against the whole observation.
+2. **Evidence during an investigation.**
+   - When a mismatch, or in two-reasoner conditions a disagreement, is being investigated, the reasoner **may consult any part** of the current observation and of its history as evidence (Brief 4.2, step 4a: "Is there evidence (history, current observation) that settles it?").
+3. **No information is withheld.**
+   - Every observation is delivered in full to every reasoner (10.2).
+   - This rule governs **when** a reasoner looks at the parts of an observation that no action could have changed. It does not limit **what** it receives.
+
+Section 12.1 explains why this rule is needed and why it is fair.
+
+#### 11.2 C1's components — [PROPOSAL]
+- **Action model:** `WorldModel` with the true rules (`applyAction`) unless faulted.
+- **Trap analysis (consequence check)** *(made precise in v0.6)*:
+  - **Definition.** Let *Free* be the set of cells the reasoner believes are not walls, and let *dest* be the destination.
+    - A **relaxed push** of the object from cell *q* in direction *d* is possible when both the cell behind it, *q* − *d*, and the cell in front, *q* + *d*, are in *Free*.
+    - "Relaxed" means the agent is assumed able to stand at *q* − *d* whenever needed. Whether the agent can actually walk there is ignored.
+    - Let *R* be the smallest set that contains *dest* and also contains any cell *q* that has a possible relaxed push into a cell already in *R*.
+    - A **dead square** is a cell in *Free* that is not in *R*.
+  - **What it guarantees.** If *p* is a dead square, **every** full state with the object at *p* is unsolvable. The relaxation only adds possibilities, so if the object cannot reach the destination even when the agent may stand anywhere, it cannot reach it at all.
+  - **What it does not guarantee.** A full state can be unsolvable even though the object's cell is **not** a dead square, for example because the agent can never reach the side it would need to push from. Such **full-state dead ends** are not detected by the trap analysis. They are avoided only through budgeted search, and they are **not** F4 faults.
+  - **How C1 uses it.** In the rest of this protocol, a "trap" means a dead square, and `trap(p)` means "*p* is a dead square".
+  - It is computed from the believed walls by a fixed reverse-push analysis, defined exactly in `STAGE_03.md`.
+  - It is recomputed whenever the believed walls change.
+  - The experimenter computes the **true** dead squares of each layout with the same analysis on the true walls and destination.
+- **Heuristic:** a fixed estimate of the remaining effort, computed from the belief without model evaluations. It counts as unreachable when the object is on a believed dead square. Its formula is fixed in `STAGE_03.md`.
+- **Planner:** a deterministic best-first search over believed states.
+  - It expands successors only through `WorldModel::predict`, which charges the budget.
+  - It never expands a state whose object is on a believed dead square.
+  - Ties are broken in the fixed action order North, East, South, West.
+
+#### 11.3 C1's decision step — [PROPOSAL]
+Each decision step *t* runs in this order:
+1. **Receive** observation *o_t* and add it to the history.
+2. **Check** the prediction committed at step *t*−1, if any, by a footprint comparison with *o_t*.
+   - If it **matches**, apply the footprint update (10.3).
+   - If it **does not match**, create a mismatch record and go to step 3. The footprint is then updated only as described in 11.4 A.5.
+   - In both cases, record the result of any pending V2 test (11.5).
+3. **Investigate** any new mismatch (11.4). If the budget does not allow the investigation to finish, it continues at the next step, and C1 is in **cautious mode** until it finishes.
+4. **Fault activation point.** This is where Stage 4 applies the faults scheduled for step *t* (12.3). Nothing happens here in Stage 3.
+5. **Plan.**
+   - Keep the current plan if its next action's predicted result, from the current belief, equals the result the plan expects.
+   - Otherwise, search anew with the remaining budget, keeping back one evaluation for step 7.
+   - If the search reaches the goal, that path becomes the plan.
+   - If not, use the **fallback**: the first action of the best frontier state found by the heuristic.
+6. **Safety.** Do not choose an action whose predicted result puts the object on a believed dead square. If no acceptable action remains, take a **safe stop** (11.6).
+7. **Commit** the prediction for the chosen action. If a correction is awaiting V2 and this prediction differs under the old and the corrected value, mark it as that correction's V2 test.
+8. **Act** (one world action) or **safe stop**, and write the step log.
+
+The run ends with:
+- **Success**, when the observed object is on the destination;
+- **Stopped — unresolved**, when the safe-stop limit is reached;
+- **Step limit**, when the maximum number of world steps is reached.
+
+The limits are set in Phase C.
+
+#### 11.4 Investigating a mismatch, and source labels — [PROPOSAL] *(revised in v0.5)*
+**Source labels in Experiment 1** *(v0.5)*:
+- **S1 (reasoning error)** means the belief about the world was right, but what the reasoner derived from it was wrong. This **explicitly includes a corrupted internal action model or consequence analysis.**
+- **S3** is reserved for a mismatch between the true environment rules or execution and the rules every reasoner was given. It should not occur in Experiment 1; if it does, it signals a bug (Brief 4.4).
+
+**A. Mismatch between prediction and observation:**
+1. **Which beliefs produced the prediction?** Compare C1's believed **pre-action** footprint contents with the recorded observation *o_t−1*. This is an evidence lookup.
+2. **If they differ,** each differing element (`wall(c)` for a footprint cell, `object`) is a **belief candidate**.
+   - Its corrected value is the value in *o_t−1*, the observation of the same moment.
+   - Suspected source: **S2** (belief error).
+3. **If they agree,** the belief was right and the prediction from it was wrong. The candidate is `model(a)`, corrected to the behaviour shown by the transition *o_t−1* → *o_t*.
+   - Suspected source: **S1**.
+4. Each candidate goes through **V1** (11.5).
+   - **Exactly one passes:** it becomes **CONSISTENT** and is applied, through a correction record.
+   - **None passes:** the suspected source is **S5**, and the mismatch is flagged as an anomaly to investigate as a possible bug.
+   - **More than one passes:** the suspected source is S5. No correction is applied, and C1 is in cautious mode until V2 separates them.
+5. **Updating the footprint afterwards:**
+   - Footprint elements covered by an applied correction are updated by that correction.
+   - Any remaining footprint difference is brought into line with *o_t* by an **unexplained update** (10.3), which is logged and flagged and never counted as a correction.
+
+**B. Consequence surprise and consequence mismatch (how F4 can be noticed)** *(made precise in v0.6)*:
+1. **Consequence surprise (the trigger).**
+   - **When it occurs.** A search from a believed state ends with **no states left to explore** and the goal has not been reached, while the object's cell *p* in that state is classified **not** dead.
+   - **What completes the search.** Only budgeted model evaluations, possibly over several steps while C1 is in cautious mode or a safe stop.
+   - **What it does not show.** A surprise alone is **not** evidence of a fault, because the state may be a full-state dead end (11.2).
+2. **Investigation: the dead-square local check** (free, 10.7). By the definition in 11.2, "*p* is not dead" holds exactly when either:
+   - *p* is the destination; or
+   - some direction *d* has *p* − *d* and *p* + *d* in *Free*, and *p* + *d* is classified not dead.
+3. **Consequence mismatch (the contradiction).**
+   - **If no such direction exists**, the stored status of *p* contradicts the analysis rule. C1 records a **consequence mismatch**, with the candidate `trap(p)` corrected to "dead" and suspected source **S1**.
+   - **If such a direction exists**, the classification is consistent. The state is logged as a **full-state dead end**, and **no claim** is made.
+
+**C. Labels C1 never uses.** C1 never labels a mismatch S3 or S4 in Experiment 1.
+
+#### 11.5 Correction verification — [PROPOSAL] (Brief 4.5) *(V1 made time-aware in v0.5)*
+**V1: the corrected belief must explain the recorded observations, each at its own time.** Values that change over time are never required to stay constant across history.
+
+| Element | V1 check | Cost |
+|---|---|---|
+| `wall(c)` | Walls never change (rule R8), so the corrected value must equal *c*'s wall status in **every** recorded observation. Re-predicting the mismatched step with the corrected belief must also reproduce *o_t*. | Free lookups, plus 1 evaluation |
+| `object` | The corrected value refers to step *t*−1. It must equal the object's position in *o_t−1*. Re-predicting the mismatched step from the corrected belief must reproduce *o_t*. Earlier positions are not compared with it, because the object moves over time. | Free lookups, plus 1 evaluation |
+| `model(a)` | The corrected model, applied to **each** recorded pre-action observation *o_k−1* in which action *a* was taken, must reproduce the recorded *o_k* for that same transition. | One evaluation per such transition, possibly spread over several steps |
+| `trap(p)` (the claim "*p* is a dead square") | The corrected status must satisfy the analysis rule at *p*: *p* is not the destination, and no direction *d* has *p* − *d* and *p* + *d* in *Free* with *p* + *d* classified not dead. No recorded observation may show the object moving from *p* to the destination. | Free local check and lookups |
+
+**V2: an independent test.**
+- **Walls, object position and action models** use Brief 4.5 option (a), a **future** observation. This is a later committed prediction whose result differs under the old and the corrected value. If it matches the observation, the correction becomes **VERIFIED**; if not, **REJECTED**.
+- **Trap classifications** *(revised in v0.6)* use a **model-based local test** of the same claim, "*p* is a dead square". The test uses the action model, not the trap analysis's own wall reasoning.
+  - For each direction *d* whose cell *p* − *d* is believed free, C1 builds the hypothetical state "agent at *p* − *d*, object at *p*" and predicts the push in direction *d*. Each prediction costs 1 evaluation, so at most 4 in total.
+  - The correction becomes **VERIFIED** if no predicted push moves the object, or every push that moves it ends on a cell classified dead.
+  - It is **REJECTED** if some predicted push moves the object to a cell classified not dead.
+  - This test is about the **relaxed** claim only, so the agent's real reachability is deliberately not tested. It is not a claim about full-state solvability.
+- **Active test.** If a correction is still CONSISTENT after *T_v* decision steps (Phase C) with no discriminating prediction, C1 may choose a **safe discriminating action** as a test.
+  - An action is a safe discriminating action if it is predicted safe under both values and the two values predict different results.
+  - If there are several, C1 chooses the one with the shortest walk, with ties broken in the action order.
+- **Options not available.** Option (b), held-out observations, is not used. Option (c), a cross-check by the other agent, does not exist for a single reasoner.
+
+**Status rules.**
+- A **CONSISTENT** correction is used, marked provisional.
+- A correction that later fails a prediction is **REJECTED**: the old value is restored, or marked unknown if the old value is also known to be wrong.
+- Every status change is logged.
+- CONSISTENT and VERIFIED corrections are reported separately (Brief 4.5).
+
+#### 11.6 Safe stops and cautious mode — [PROPOSAL]
+- **Cautious mode.** C1 enters cautious mode while an investigation is unfinished or several candidates remain. It then chooses only actions whose predicted results agree under **every** remaining candidate and are safe under every one.
+- **Safe stop.** C1 takes a **safe stop** when:
+  - there is no such action in cautious mode; or
+  - no safe action exists at all (11.3, step 6).
+
+  The safe stop is logged with the unresolved question and the risk avoided. It consumes that step's budget (Brief 11.5.3), which may be used to continue investigating.
+- **Limit.** A safe-stop limit S_max (Phase C) bounds the number of safe stops. When it is reached, the run ends "Stopped — unresolved".
+
+#### 11.7 Order of budget use within a step — [PROPOSAL]
+1. Reserve one evaluation for the committed prediction (step 7).
+2. Then spend the rest in this order:
+   1. unfinished V1 checks;
+   2. checks needed to choose a cautious action;
+   3. planning;
+   4. extra search in fallback mode.
+
+Phase C must set B large enough that every condition can always afford the reserve. That is a pilot check (Section 9.2), not tuning.
+
+#### 11.8 C0, the naive single agent — [PROPOSAL] *(planning clarified in v0.5)*
+C0 uses C1's planner, heuristic, trap analysis and budget. It **never reads an observation after the first**. It makes no checks, investigations, corrections, claims or safe stops.
+
+**Initial planning.**
+- At decision step 1, C0 runs one budget-limited search from its initial belief.
+- If the search reaches the goal, the path is C0's plan. If not, C0 takes the fallback action (11.3, step 5).
+
+**Executing a plan.**
+- While its plan has actions left, C0 takes the next one **without any new search**.
+- It sets its belief to the state the plan predicted for that action, which was stored when the plan was made. This reuse costs nothing, because C0's belief is, by definition, that stored state.
+
+**Continuation, after the plan is used up.**
+- When C0 has no remaining plan actions and its belief has not reached the goal, it runs a new budget-limited search from its **own** belief. This happens after a fallback action, or when a plan has run out.
+- Continuation is **never** triggered by anything observed. C0 never revises a plan in the light of observations, which is what "plans once, never checks predictions" means here.
+
+**Effect.**
+- Without faults, C0's predictions are exact, so it behaves like C1.
+- With faults, its belief drifts from the world.
+- Its detection measures are zero **by definition**. C0 is used only for H5 (task success).
+
+---
 
 ### 12. Fault application and event definitions
-- How each fault type F1–F5 is applied to a belief or reasoning step.
-- The exact event definitions for: activation; detection opportunity; the three detection levels (5.2); "claim that an error exists"; "correctly identified"; "decision step"; and verified correction.
+
+#### 12.1 The STAGE_02 Section 5.6 problem and how this design resolves it — [PROPOSAL]
+**The problem.** The world is fully observed. Suppose every reasoner compared its whole belief, or whole predicted states, with the whole observation at every step. Then any wrong belief about something visible, such as a wall (F1) or the object's position (F2, F5), would be revealed at once, by every condition. That includes C1, and it would happen whether or not the belief ever mattered. The result would be a ceiling effect that says nothing about catching errors in reasoning.
+
+**The resolution** (rule 11.1, footprint 10.5).
+- Every reasoner reads exactly what the world can change: the footprint.
+- It does not continuously re-verify the parts of its belief that no action could have changed.
+- A wrong belief about those parts is, by construction, an error that came from the reasoner and not from the world, which is exactly what Experiment 1 studies (Brief 11.1).
+- Such an error becomes visible when it is **used**: when it affects a prediction's footprint, and that prediction is checked.
+
+**Why this is fair to C1.**
+1. **Full information.** Every observation is delivered in full to every reasoner, and the whole of it is available as evidence once a question arises (11.1, 11.4).
+2. **No loss without faults.** Without faults, footprint updating keeps the belief exactly correct (10.5). The rule costs a reasoner nothing in a world where it holds no false beliefs.
+3. **Equal rules.** The same rule applies to every reasoner in every condition, including the agents of C2–C4, whose predictions are compared with each other on the same footprint (12.8).
+4. **Matches the brief.** It follows the brief's own reasoning cycle (Brief 4.2): checking is done by comparing predictions with observations, and investigation then consults the evidence.
+
+**What it changes, and what it does not.**
+- It does not change any Phase A definition.
+- It makes F1, F2 and F5 faults **detectable through use**, like F3 and F4.
+- It narrows what Experiment 1's results can claim. They apply to reasoners that check their beliefs through predictions. A reasoner that audited every belief against every observation would find F1, F2 and F5 faults immediately. This is stated as a limitation (12.7).
+
+#### 12.2 How each fault type is applied — [PROPOSAL]
+
+**Details fixed when the fault-event list is generated** (the same for every condition):
+
+| Type | Element | Details |
+|---|---|---|
+| **F1** wrong wall | `wall(c)` | An interior cell *c*, other than the destination. The split between free→blocked and blocked→free events is set in Phase C. |
+| **F2** wrong object position | `object` | A seeded order of the four directions. |
+| **F3** faulty action model | `model(a)` | An action *a* and a rotation (left or right). |
+| **F4** faulty consequence reasoning | `trap(p)` | A **true dead square** *p* of the layout (11.2, computed from the true walls and destination). |
+| **F5** stale memory | `object` | None. |
+
+**When an event is not applicable:**
+- **F1:** a free→blocked flip would put a wall under the agent or object the reasoner believes is there.
+- **F2:** no direction passes the test in the effect below.
+- **F3:** always applicable.
+- **F4:** the layout has no dead squares.
+- **F5:** the object has not yet moved in this run.
+
+**Effect when activated:**
+- **F1:** the reasoner's belief about *c* is flipped.
+- **F2:** the believed object moves one cell in the first direction (in the seeded order) whose cell is inside the grid, believed free of walls, and not the believed agent cell.
+- **F3:** in this reasoner's action model, when *a* would push, the object is predicted to move in the rotated direction. If that cell is believed blocked, the prediction is Blocked. The fault affects **all** of this reasoner's model evaluations, including planning.
+- **F4:** in **every** run of this reasoner's trap analysis, **after the analysis has finished**, the stored status of *p* is overwritten with "not dead". Every other cell's status is computed normally from the true rule, before the overwrite, so it does not depend on the faulty status of *p*. The walls and the local check of 11.4 B are unaffected. F4 always goes in this one direction: it fails to recognise a dead square. **True value for scoring:** "dead".
+- **F5:** the believed object position goes back to where it was before its most recent move.
+
+**Ground-truth source label:**
+- **S2** for F1, F2 and F5.
+- **S1** for F3 and F4.
+
+**Why F3 counts as S1** *(settled in v0.5, following review)*: in Experiment 1, S1 explicitly includes a corrupted internal action model or consequence analysis, and S3 is reserved for a mismatch in the actual environment rules or execution (11.4). The brief says S3 should not occur in Experiment 1 (4.4).
+
+**Other rules:**
+- **Common-mode events** apply the same details to both reasoners. F2 and F5 are applied to each reasoner's own belief.
+- **Reasoners without an element.** If a fault type has no meaning for a reasoner in Phase C (for example, a reasoner without a trap analysis), this must be stated there, and results are reported per type (Brief 11.5.1).
+
+#### 12.3 Activation, persistence, and end of a fault (the fault lifecycle) — [PROPOSAL] *(rewritten in v0.5)*
+**Activation.**
+- An event is **activated** in a reasoner when both are true:
+  - the run reaches its scheduled decision step;
+  - the event is applicable there.
+- It is applied at the fault activation point (11.3, step 4): after the previous prediction has been checked and any investigation of it has run, and before planning.
+- A common-mode event counts as **one** event. It is activated if it is applied to at least one reasoner.
+- An event whose step is not reached, or that is not applicable, is **not activated** (Phase A 4.3). The two reasons are counted separately.
+
+**Two kinds of fault.**
+
+| Kind | Types | What activation does | When the fault is active |
+|---|---|---|---|
+| **Value fault** | F1, F2, F5 | Corrupts one stored belief value once. No ongoing cause remains. | While the element's believed value differs from its true value at that moment. For `object`, the true value is the object's current position. |
+| **Process fault** | F3, F4 | Installs an ongoing cause in the action model `model(a)` or the trap analysis at *p*. The cause is applied on **every** use, including every recomputation of the trap analysis. | Until a correction **replaces** `model(a)` with the true behaviour, or reclassifies `trap(p)` truly. No belief update, footprint update, or recomputation can end it. |
+
+**End states recorded by the scorer** (exactly one at the end of the run, with its history):
+1. **Corrected.** A **correction record** for this reasoner and element set it to the **true** value or behaviour. Its final status is recorded: CONSISTENT or VERIFIED.
+2. **Overwritten without correction.** The element became true by any other route, such as an unexplained update. This applies to value faults only. The fault ends, but this event is **not** counted as detected, corrected or verified.
+3. **Active at end of run.** The fault was still active when the run ended.
+
+**Further rules:**
+- If a correction is later **REJECTED** and the faulty value or behaviour is restored, the **same** event becomes active again. It is not a new activation.
+- A wrong-valued correction leaves the fault active. It counts under M6.
+- **Credit only through records.** Detection is credited **only** through claims (12.5), and correction and verification **only** through correction records. A restored true value never earns detection, correction or verification credit.
+
+#### 12.4 Shadow evaluation (scoring only) — [PROPOSAL]
+- **What it is.** For every model evaluation, heuristic computation and trap analysis performed by a reasoner while it holds an active fault, the scoring code repeats the computation with the faulted element at its true value.
+- **Separation.**
+  - These shadow computations never use any reasoner's budget.
+  - They are never visible to any reasoner.
+  - They live in the scoring code, which is separate from the agents (Brief 11.5.2).
+
+#### 12.5 Event definitions — [PROPOSAL]
+1. **Decision step.** One pass through the cycle that ends in exactly one world action or one safe stop. A **world step** is a decision step that ends in a world action. Safe-stop steps are decision steps (Phase A 5.4).
+2. **Effective use** of an active fault. A computation in which the fault changes the result, compared with its shadow:
+   - for a model evaluation, the predicted outcome or footprint contents differ;
+   - for the heuristic or trap analysis, the value differs.
+3. **Detection opportunity** (Phase A 4.3). At least one effective use before the fault ends or the run ends.
+   - **Revealing opportunity:** an effective use in a **committed prediction that was then checked**.
+   - Both counts are reported.
+4. **Mismatch.** A recorded footprint difference between a committed prediction and the observation, or, in Phase C, between two reasoners' predictions. A mismatch is **caused by** every active fault that had an effective use in the compared prediction(s).
+5. **Mismatch detection** of event *e* (Phase A 5.2). A mismatch caused by *e* is recorded while *e* is active.
+6. **Claim that an error exists.** One of:
+   - a correction recorded as CONSISTENT or VERIFIED;
+   - in Phase C, an OBJECTION or SAFE_STOP that names a specific reasoner and element.
+
+   Candidates rejected inside V1 are **not** claims.
+7. **Correctly identified.** The claim names the same reasoner and the same element as event *e*. The corrected value is judged separately, by M4 and M6.
+8. **Reasoner attribution and strict detection** (Phase A 5.2). The first claim made while *e* is active that names *e*'s reasoner, and *e*'s reasoner and element, respectively. For common-mode events, the rules in Phase A 5.2 apply. *(v0.5)* An element that became true without a claim ("overwritten without correction", 12.3) is **never** counted as detected.
+9. **False alarm** (M3). A claim whose reasoner and element held **no** active fault at the time of the claim.
+10. **Verified correction** (M4). A correction for *e*'s reasoner and element, with the **true** value, that reached VERIFIED while *e* was active.
+11. **Wrong accepted correction** (M6). A correction that reached CONSISTENT or VERIFIED with a value that is not the true value.
+12. **Justified safe stop** (M7). A safe stop at a decision step when at least one activated fault was active in any reasoner of the system.
+13. **Source-label accuracy** (M8). A mismatch record's suspected source is compared with the ground-truth sources of the faults that caused it (12.2).
+    - A mismatch caused by **no** fault cannot happen in an exact world unless there is a bug, so each one is investigated as a possible bug (Phase A 8.4).
+    - S5 is scored as "not identified", never as correct.
+
+#### 12.6 Denominators — [PROPOSAL] (clarifying Phase A, not changing it)
+- **Primary denominators.** Detection opportunity depends on each condition's own behaviour. So it is **not** used to remove events from the primary denominators. The primary M2 and M4 denominators remain the common-exposure set of **activated** events (Phase A 4.4).
+- **Why.** A condition must not be able to shrink its denominator by using its beliefs less (Phase A 4.3: "cannot improve its detection score by stopping early or acting less").
+- **Secondary analysis.** A pre-specified secondary analysis reports M2 and M4 over events with a **revealing opportunity in both** conditions of a comparison. It is clearly labelled, and it is never presented alone.
+
+#### 12.7 Known limitations of this design — [PROPOSAL]
+1. **The checks-through-prediction model.** Results apply to reasoners that check beliefs through predictions (12.1), **not to every possible single-agent architecture**. A reasoner that continuously audited every belief against the whole observation would find F1, F2 and F5 faults at once. Every report of Experiment 1 must state this limitation next to the primary conclusion.
+2. **Noticing is the hard part.** Once a mismatch is noticed, the exact history makes it easy to find the faulty belief element. Differences between conditions are therefore expected mainly in **noticing** (when, and whether, a fault is used and checked), in timing (M5), and in false alarms. Strict identification itself is expected to be easy.
+3. **Faults a single reasoner cannot find.** A single reasoner that wrongly believes a free cell is blocked (F1, free→blocked) will usually plan around it, and never test it. Such faults are often undetectable without a second reasoner. This is reported per fault type and direction, and through the secondary analysis (12.6).
+4. **F4 is hard for every condition.** It can be noticed only after an exhaustive search ends without a solution (11.4 B), which a per-step budget rarely allows unless the object is already stuck. Expected detection rates for F4 are low for every condition. F4 concerns only **dead squares** in the relaxed sense of 11.2. Full-state dead ends that are not dead squares are outside F4: they are never counted as F4 faults, detections or misses.
+
+#### 12.8 Requirements Phase C must meet — [PROPOSAL]
+1. **Shared rules for C2–C4.** C2–C4 use the rules of 11.1, the footprint, the belief maintenance of 10.3, the verification of 11.5, the safe stops of 11.6, the fault lifecycle of 12.3, and the event definitions of 12.5 without change. They use only the free computations in 10.7, with the same bounds.
+2. **Comparing predictions between reasoners.** Two reasoners' predictions are compared **on the footprint only**, so that a partner's prediction does not act as a whole-belief audit. Beliefs are revealed to the other reasoner only through messages during an investigation (Brief 4.2, step 4a).
+3. **Numbers.** Phase C sets the remaining numbers, with stated reasons, before any pilot:
+   - B and how it is split;
+   - T_max (the maximum number of world steps);
+   - S_max (the safe-stop limit);
+   - T_v (the steps before an active test);
+   - the fault rate and the mix of fault types, including the F1 direction split;
+   - the common-mode share;
+   - layout requirements: some layouts must contain dead squares (Brief 11.2).
+
+#### 12.9 Tests the Stage 3 plan must include — [PROPOSAL] *(added in v0.5)*
+`STAGE_03.md` must include correctness tests for at least the following, using **valid** test worlds (Stage 1 lesson T10). Beliefs may be made wrong by hand in tests; Stage 3 has no fault injection.
+
+1. **Footprint invariant.** Without faults, after any sequence of actions, the footprint-updated belief equals the true state.
+2. **Footprint selection.** Each row of the disagreement table in 10.5 produces exactly the listed cells and reported differences.
+3. **Matching update.** A footprint update after a matching check never changes a belief value that was in the comparison.
+4. **Investigation:**
+   - a wrong wall at c1;
+   - a wrong object position (believed at c1 when it is not, and not believed at c1 when it is);
+   - a wrong action model.
+
+   Each case gives the correct candidate, the correct corrected value and the correct suspected source (S2 or S1).
+5. **Time-aware V1:**
+   - A true object correction passes V1 even though the object was elsewhere in earlier observations.
+   - A wrong object correction fails V1.
+   - A wall correction is checked against every recorded observation.
+   - An action-model correction is checked against each recorded transition with its own pre-state.
+6. **V2 and active tests.** A discriminating future prediction makes a correction VERIFIED or REJECTED, and an active test is chosen only when safe.
+7. **Unexplained update.** When no candidate passes V1, the update is logged as unexplained and no correction record is created.
+8. **Budget:**
+   - No state is examined without a budgeted evaluation.
+   - Unused budget is not carried over.
+   - The reserve for the committed prediction is always kept.
+   - Heuristic calls never exceed model evaluations.
+   - The trap analysis runs only when the believed walls change.
+11. **Dead squares versus full-state dead ends** *(v0.6)*:
+    - In a small layout, the analysis marks a relaxed dead square, such as a corner that is not the destination.
+    - In a layout with a full-state dead end whose object cell is **not** a dead square (for example, the agent cannot reach the pushing side), the analysis marks the cell "not dead", an exhaustive search finds no solution, the local check holds, and the result is logged as a full-state dead end with **no claim**.
+12. **F4 correction claims** *(v0.6)*:
+    - **Valid claim.** The status of a true dead square is overwritten by hand to "not dead", with the object on it. The search runs out of states, the local check fails, and the claim `trap(p)` = dead is made (S1). It passes V1, and the model-based V2 test makes it VERIFIED.
+    - **Invalid claim.** A proposed "dead" status for a cell that is not a dead square fails V1, or is REJECTED by V2.
+9. **Safe stops.** A safe stop happens when no safe or cautious action exists. It counts as a decision step, and it consumes that step's budget.
+10. **C0.** C0 never reads observations after the first, and plans again only when its plan is used up.
 
 ## Phase C sections (placeholders; to be written during Stage 3)
 
 ### 13. Two-agent behaviour (C2–C4)
-Built on the shared definitions in Phase B.
+Built on the shared definitions in Phase B, and meeting the requirements in 12.8.
 
 ### 14. Numbers
 - Budget per step B and how it is split;
@@ -409,3 +866,7 @@ Approval, `DECISIONS.md` entry, and the `protocol-1-approved` tag.
 | Draft v0.2 | 2026-10-19 | Revised after ChatGPT's review of v0.1, which supported the overall framework. **(1) Decision rules (7.2–7.4):** v0.1 called a result "Supported" when *L* > 0 and *D* ≥ Δ, which does not show the true improvement reaches Δ. Replaced by five ordered verdicts (Worse; Meaningful improvement, *L* ≥ Δ; Meaningful improvement ruled out, *U* < Δ; Some improvement, size uncertain, *L* > 0; Inconclusive), applied in order with defined boundary equality; H2 given three ordered verdicts; new primary-conclusion table. Thresholds explicitly described as research design judgments (7.1). **(2) Intervals (6.4):** corrected the Bonferroni interval for the two secondary hypotheses from 98.3% (an arithmetic error) to **97.5%**; explained why co-primary H1 and H2 use 95% each; H5 treated as diagnostic. New 2.1 on how H1 and H2 jointly decide the primary conclusion. **(3) Detection (5.2):** three detection levels (mismatch, reasoner attribution, strict), with strict detection kept as primary; common-mode events counted once per event, with full common-mode detection reported separately; new M2a and M2b. **(4) Exposure and fairness (4.3, 4.4, 5.4):** scheduled / activated / not-activated / detection-opportunity classes; non-activated faults never counted as detected or missed; primary comparisons on the common-exposure set, with all-activated reported as secondary; decision steps include safe-stop steps; total false alarms (M3a) and exposure counts (M12) always reported. **(5) H5 (2.2):** a failed sanity check is a diagnostic warning requiring investigation, not automatic invalidation; H1–H4 always reported, with a qualification. The brief is unchanged; no code written; no Phase B or C details added beyond the requirements they must meet. Not approved; not frozen. |
 | Draft v0.3 | 2026-10-19 | ChatGPT reviewed v0.2, accepted all its revisions, and recommended approval of the Phase A framework after two final clarifications. **(1) 7.2:** the five verdicts and their rules are unchanged; added an explanation and reporting instruction that "Meaningful improvement ruled out" does not necessarily mean no improvement. An interval entirely above 0 but below Δ is evidence of a **small positive improvement**, not a meaningful one, and must never be called "no effect" or support. **(2) 4.4:** added matched-exposure safeguards: report the retained fraction of scheduled (and activated) fault events; layouts with zero common exposure give an **undefined** rate (never divide by zero, never treated as 0% or 100%), are left out of that average only, and are counted and named; a comparison with no defined layouts is "Inconclusive (no common exposure)"; matching does not remove every effect of different stopping times; common-exposure results are always reported with all-activated results, task success, safe stops and exposure counts. No other change to architecture, hypotheses, conditions, thresholds or design. Not frozen. |
 | v0.3 — Phase A approved | 2026-10-19 | **Phase A (Sections 1–9) APPROVED** by ChatGPT's independent review and by the owner. ChatGPT confirmed both v0.3 clarifications and approved the hypotheses H1–H5, conditions C0–C4, fault types F1–F5, measurement categories, statistical comparison approach, and pilot-run safeguards. Only the status lines changed; the content is identical to Draft v0.3. **Framework only. The complete protocol is not frozen**; Phases B and C remain. The approved Phase A definitions and thresholds must not be changed because of pilot performance or observed results. The `protocol-1-approved` tag is reserved for the complete protocol. |
+| Draft v0.4 | 2026-10-19 | **Phase B (Sections 10–12) drafted** by Claude after Stage 2 was completed and tagged (`e112145`), for independent review by ChatGPT and approval by the owner. **Section 10** defines representations matching the Stage 2 code: observations (complete, identical for every reasoner, exact history), how a belief may change (never silently overwritten), belief elements for faults and claims, the action **footprint**, records, and budget/free-computation rules. **Section 11** defines C1's full decision step (check, investigate, plan, safety, commit, act or safe stop), investigation and source labels, V1/V2 correction verification with an active-test option, cautious mode and safe stops, budget order, and C0. **Section 12** resolves `STAGE_02.md` 5.6: every reasoner checks its beliefs through predictions compared **on the footprint** (all that an action can change) and may consult the whole observation and history once a mismatch is investigated; no information is withheld, and without faults beliefs stay exactly correct. It also defines how F1–F5 are applied, activation and persistence, scoring-only shadow evaluation, all event definitions required by Phase A, a clarification of denominators, limitations, and requirements for Phase C. Header and phase-status lines updated. **Sections 1–9 (Phase A) unchanged.** Not approved; not frozen. |
+| Draft v0.5 | 2026-10-19 | ChatGPT reviewed v0.4, supported the overall Phase B design (footprint-based, prediction-triggered checking applied equally to all conditions, with full observations and history available during investigations), and requested targeted corrections. Only the affected Phase B sections were revised. **(1) Time-aware V1 (11.5):** each element is verified against observations at its own time: walls against every recorded observation (walls never change); a corrected object position against the observation of the same moment and the mismatched transition, never against earlier positions; action models against each recorded transition from its own pre-state; trap classifications by the exhaustive-search evidence, with V2 by an independent second search. **(2) Budget (10.7):** any operation that generates or evaluates a successor state (including partial states) is budgeted; every examined state must come from a budgeted evaluation; the only free computations are listed with fixed scopes and bounds (trap analysis over object cells only, run only when believed walls change; heuristic by table lookups, called only on budgeted states); all are counted and reported; Phase C may add no other free computation, so two-reasoner conditions gain no uncharged capacity. **(3) Fault lifecycle (10.3, 12.3, 12.5):** belief changes are matching footprint updates, corrections, logged *unexplained updates*, or injected faults; value faults (F1, F2, F5) and process faults (F3, F4) defined separately; the scorer records each event as corrected (with status), overwritten without correction, or active at end; detection, correction and verification are credited only through claims and correction records, never through a restored value. **(4) Deterministic footprint (10.5):** c2 inclusion rule completed (believed object at c1, observed Pushed, or observed object at c1); cells chosen before comparison from belief and observation only; the same rule for comparing two reasoners' predictions; a table of disagreement cases. **(5) C0 (11.8):** initial planning, plan execution without search, and continuation only when the plan is used up, never triggered by observation. **(6)** Limitation 12.7.1 strengthened (results do not apply to every possible single-agent architecture; stated beside the primary conclusion). S1 explicitly includes a corrupted internal action model or consequence analysis; S3 reserved for actual environment rules or execution (11.4, 12.2). Consequence mismatches (how F4 can be noticed) defined (11.4 B). New 12.9 lists the tests `STAGE_03.md` must include. **Sections 1–9 (Phase A) unchanged.** Not approved; not frozen. |
+| Draft v0.6 | 2026-10-19 | ChatGPT reviewed v0.5, accepted all six v0.4 corrections, and requested one final conceptual correction about the trap analysis and F4. **(1) 11.2:** a trap is now defined precisely as a **dead square**, a cell outside the smallest set *R* that contains the destination and is closed under *relaxed* pushes (both the cell behind and the cell in front believed free, agent reachability ignored). It is stated that a dead square makes every full state with the object there unsolvable, but that full-state dead ends with the object on a non-dead square exist, are not detected by the analysis, and are not F4 faults. **(2) 11.4 B:** an exhaustive search ending without a solution is now only a **consequence surprise** (a trigger, not evidence). A **consequence mismatch** requires a contradiction of the relaxed claim itself: the free one-cell **dead-square local check** finds that the stored status "*p* not dead" violates the analysis rule. Otherwise the state is logged as a full-state dead end, and no claim is made. **(3) 11.5:** V1 and V2 for `trap(p)` now test the same claim, "*p* is a dead square": V1 is the local analysis-rule check; V2 is a model-based local test (at most 4 budgeted push predictions from hypothetical states "agent at *p* − *d*, object at *p*"), replacing the second full-state search. **(4) 12.2:** F4 overwrites the stored status of a true dead square *p* with "not dead" after each analysis run, leaving every other cell's status unaffected; true value for scoring: "dead". **(5) 12.9:** new tests distinguishing dead squares from full-state dead ends, and testing valid and invalid F4 claims. 10.7 adds the bounded local check to the free computations and permits budgeted predictions from the V2 hypothetical states; 12.7.4 restricts F4 to dead squares. Checked by brute force for this draft on 1,500 random 7×7 layouts: 0 of 366,770 full states with the object on a dead square were solvable; the local check rejected every corrupted dead-square status (19,306 cases); and 28,372 full-state dead ends on non-dead squares were found, confirming that the two notions differ. **Sections 1–9 (Phase A) unchanged.** Not approved; not frozen. |
+| v0.6 — Phase B approved | 2026-10-19 | **Phase B (Sections 10–12) APPROVED** by ChatGPT's independent review and by the owner. ChatGPT confirmed that v0.6 correctly distinguishes dead squares (relaxed reverse-push analysis) from full-state dead ends; a consequence surprise (trigger only) from a consequence mismatch (a contradiction of the dead-square classification); and accepted the revised F4 definition, the local V1 check and the budgeted model-based V2 test. The earlier Phase B safeguards remain accepted: equal information, computational budgets, fault persistence, time-aware verification, and protection of the competent single-agent baseline. Only the status lines changed; the content of Sections 10–12 is identical to Draft v0.6. **Sections 1–9 (Phase A) unchanged.** **The complete protocol is not frozen**; Phase C remains. The `protocol-1-approved` tag is reserved for the complete protocol. |
