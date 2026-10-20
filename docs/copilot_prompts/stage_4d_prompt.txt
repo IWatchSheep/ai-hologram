@@ -1,0 +1,198 @@
+You are the project's coding assistant, in place of GitHub Copilot. Every rule in .github/copilot-instructions.md that is addressed to Copilot applies to you, including rules 2a-2g. Read that file, docs/stages/STAGE_04.md (v1.2.1: Sections 3.7, 3.8, 3.9 (only the parts about committed predictions and mismatch causes), 3.12, 4.2, 6.6 (SC1-SC6), 7, 8 (D-037, D-038, D-042, D-044, D-045), 9.1 and 13), and protocol docs/EXPERIMENT_1_PROTOCOL.md Phase B 12.3-12.6, before changing anything. Never run git commit, git push, or any command that changes Git history; leave all Git operations to the owner. Sub-stages 4a-4c are complete and committed (485 checks, 0 failures).
+
+Implement SUB-STAGE 4d ONLY (plan Section 7, Step 5): the scorer (the "referee"): phases, claims, the life of each fault event, the committed-prediction shadow, mismatch causes and source labels. NO observers (H3, H4 are 4e), no CSV, no program-output change.
+
+NO Stage 1-3 file changes in this sub-stage: everything is experimenter code in src/experiment/, plus fault_run.* (4c, experimenter code) and the tests. The scorer only READS the agent's public state; it never writes to it, and no agent file includes a scorer header.
+
+1. src/experiment/scorer.h (+ scorer.cpp, and split into scorer_life.cpp / scorer_commit.cpp if needed to stay under about 200 lines; the owner approves those names):
+
+   struct ScoredView {                       // read-only view of one reasoner (plan 4.2)
+       const WorldState* belief = nullptr;
+       const AgentActionModel* model = nullptr;
+       const std::vector<Position>* notDeadOverrides = nullptr;
+       const std::vector<Position>* deadOverrides = nullptr;
+       const std::vector<CorrectionRecord>* corrections = nullptr;   // null for C0
+       const std::vector<MismatchRecord>* mismatches = nullptr;      // null for C0
+       const CommittedPrediction* committed = nullptr;               // null for C0
+   };
+   ScoredView viewOf(const SingleAgentState& state);
+   ScoredView viewOf(const NaiveAgentState& state);
+
+   enum class EndState { None, Corrected, Overwritten };
+   struct EventScore {
+       bool activated = false;
+       int activationStep = 0;
+       bool active = false;
+       EndState endState = EndState::None;
+       int endStep = 0;
+       int correctingId = 0;                         // record that ended it (Corrected), 0 if none
+       std::optional<CorrectionStatus> correctionStatus;   // that record's status at the end of the run
+       std::optional<int> opportunityStep;           // first effective use (4d: committed predictions only)
+       bool revealing = false;
+       std::optional<int> mismatchStep;
+       std::optional<int> strictStep;
+   };
+   struct RunScore {
+       int claims = 0; int falseAlarms = 0; int wrongAccepted = 0; int justifiedSafeStops = 0;
+       int mismatches = 0; int mismatchesWithoutCause = 0; int labelsCorrect = 0; int labelsScored = 0;
+   };   (one member per line in the real code)
+
+   bool claimValueIsTrue(const CorrectionRecord& record, const WorldState& trueLayout,
+                         const std::vector<Observation>& trueHistory,
+                         const std::vector<MismatchRecord>& mismatches);
+     - Wall(c): record.newBlocked == isWall(trueLayout, c).
+     - ActionModel: always true (the only model correction is "the standard rule").
+     - Trap(p): p is dead in computeDeadSquares(trueLayout, {}, {}, counts).
+     - Object (D-042): if mismatches is empty, false. Otherwise s = mismatches.back().decisionStep; true when 2 <= s and s - 2 < trueHistory.size() and record.newPosition == trueHistory[s - 2].state.object. (A mismatch recorded at decision step s checks observation o_s; the claim is about o_(s-1), which is trueHistory[s - 2] because trueHistory[0] is o_1.)
+
+   class Scorer {
+   public:
+       Scorer(std::vector<FaultEvent> events, WorldState trueLayout, const std::vector<Observation>* trueHistory);
+       void endPhaseA(const ScoredView& view, int decisionStep);
+       void afterActivation(const ScoredView& view, const std::vector<ActivationRecord>& records, int decisionStep);
+       void afterDecide(const ScoredView& view, const Decision& decision);
+       void endFinalCheck(const ScoredView& view);
+       void finish(const ScoredView& view);
+       const std::vector<EventScore>& events() const;
+       const RunScore& run() const;
+   };
+   (finish is a small addition to plan 4.2: it records each Corrected event's final record status.)
+
+   THE ALGORITHM (exactly; it is what the reference does). Element of an event: F1 -> Wall(cell); F2, F5 -> Object; F3 -> ActionModel(action); F4 -> Trap(cell). Element of a correction record: its `element` (kind, and cell for Wall/Trap, action for ActionModel; Object has no cell). Ground-truth source: S2 for F1, F2, F5; S1 for F3, F4.
+   "Active now" for an activated event, from the view and the true world:
+       F1: isWall(*belief, c) != isWall(trueLayout, c);
+       F2, F5: belief->object != trueHistory->back().state.object;
+       F3: !model->isRestored(action);
+       F4: c is not in *deadOverrides.
+   endPhaseA(view, t) sets the current step to t, then runs endPhase(view). endFinalCheck(view) runs endPhase(view) with the current step unchanged (D-045).
+   endPhase(view):
+       a) startActive[i] = activated && endState == None && active  (for every event, before anything below).
+       b) New claims: every correction record not yet seen (in id order). For each: claims++; if !claimValueIsTrue(...) then wrongAccepted++. Find the events whose element equals the record's element AND startActive; if there are none, falseAlarms++; for each such event without a strictStep, strictStep = current step. Remember which records are new in this phase.
+       c) New mismatch records (every record not yet seen): mismatches++; causes = the remembered committed causes (from the last afterDecide) that are startActive. If causes is empty: mismatchesWithoutCause++. Otherwise labelsScored++, and labelsCorrect++ if the record's `suspected` equals the ground-truth source of at least one cause; each cause without a mismatchStep gets mismatchStep = the record's decisionStep.
+       d) Event life, for every activated event, with now = "active now":
+          - if endState == None and active and !now:
+              * if a NEW record (this phase) has the event's element and a true value: Corrected, correctingId = the LAST such record's id, endStep = current step;
+              * else if the event is F3 or F4: Corrected, correctingId = the last record in the whole list with the event's element whose status is not Rejected (0 if none), endStep = current step;
+              * else: Overwritten, endStep = current step;
+              * active = false.
+          - else if endState == Corrected and correctingId != 0 and that record's status is now Rejected and now is true: endState = None, active = true, correctingId = 0, endStep = 0 (the same event is active again; plan 3.7).
+       e) The remembered committed causes are cleared.
+   afterActivation(view, records, t): for each event i whose records[i].status is Applied and which is not yet activated: activated = true, activationStep = t, active = true; if it is not "active now" (for example F2 moved the believed object onto the true one), then active = false, endState = Overwritten, endStep = t.
+   afterDecide(view, decision): first endPhase(view) (phase B). Then:
+       - if !decision.isAction: if any event is activated && endState == None && active, justifiedSafeStops++. Return.
+       - if view.committed is not null and committed->has: pre = committed->beliefBefore, a = committed->prediction.action, the result = (committed->prediction.state, committed->prediction.outcome). For every event that is activated && endState == None && active, if committedEffective(event, pre, a, result, view) then: remember it as a committed cause; revealing = true; if no opportunityStep, opportunityStep = current step.
+   committedEffective (the shadow of the committed prediction, plan 3.9; the scorer calls the model function itself, so no budget is used):
+       - F4: false.
+       - F3: true only if a == the event's action and !model->isRestored(a), and the result differs from applyAction(pre, a).
+       - F1: shadow = pre with cell c set to its TRUE wall status; if pre already has the true status, false.
+       - F2, F5: let b = *view.belief and T = trueHistory->back().state.object; if b.object == T or pre.object != b.object, false; otherwise shadow = pre with object = T.
+       - For F1, F2, F5: if !isValidWorld(shadow), true. Otherwise shadowResult = view.model->current()(shadow, a), and the use is effective if the two predictions differ: their outcomes differ, or compareFootprint finds a difference on the cells of computeFootprintForTwoPredictions(pre, result outcome, shadow, shadow outcome, a), comparing the result state with the shadow state.
+   finish(view): for every event with endState == Corrected and correctingId != 0, correctionStatus = that record's status (if the view has corrections).
+   For C0 the view has no corrections, mismatches or committed prediction: those steps simply do nothing.
+   Beginner comments: the referee never touches the dog (reads only); why there are two phases (D-037); credit only through records; why an object claim is judged at the moment it is about (D-042, the "stale address" in the owner's words); what a revealing opportunity is; why a mismatch with no fault cause is counted and reported as a possible bug, never assumed impossible.
+
+2. src/experiment/fault_run.h / .cpp: FaultRunResult gains `std::vector<EventScore> eventScores;` and `RunScore score;`. In BOTH runWithFaults overloads:
+   - create Scorer scorer(events, trueInitialState, &trueHistory) next to the injector;
+   - the activation hook becomes: scorer.endPhaseA(viewOf(agent.state), step); injector.atActivationPoint(partsOf(agent.state), step); scorer.afterActivation(viewOf(agent.state), injector.records(), step);
+   - immediately after each agent.decide(...) returns, BEFORE the environment steps or any observation is pushed: scorer.afterDecide(viewOf(agent.state), decision);
+   - C1 only: immediately after each agent.finalCheck(next): scorer.endFinalCheck(viewOf(agent.state));
+   - before returning on every path (inside finishRun is fine): scorer.finish(viewOf(agent.state)); copy scorer.events() and scorer.run() into the result.
+   Nothing else in the run loop changes: every FR and FI test must still pass unchanged.
+
+3. Tests. New files tests/test_scorer.cpp, tests/test_scorer_life.cpp, tests/test_scorer_demo.cpp (split further if needed). Register them (test_suites.h, test_main.cpp after the fault-run tests, CMakeLists.txt). One statement per line; braces always; every hand-built world valid (checked). Settings AgentSettings{200, 5, 100, 3}. D = Stage 3 demo layout; D2 = D with a wall at (4, 3).
+   - SC1 (FR1's run: true D2, C1 with no starting belief, event demo-1: step 1, F1, BlockedToFree, (4, 3)): activated at 1; revealing true; opportunityStep 1; mismatchStep 2; strictStep 2; Corrected at 2, correctingId 1, correctionStatus Verified; run: claims 1, falseAlarms 0, wrongAccepted 0, mismatches 1, mismatchesWithoutCause 0, labelsCorrect 1, labelsScored 1, justifiedSafeStops 0.
+   - SC2 (true D2, C1 with the hand-written starting belief D, NO events): claims 1, falseAlarms 1, wrongAccepted 0, mismatches 1, mismatchesWithoutCause 1, labelsScored 0, labelsCorrect 0. Description: a deliberately hand-written (not injected) error is a false alarm plus a mismatch without fault cause, reported as a possible bug.
+   - SC3 (claimValueIsTrue, records built by hand): Wall (4, 3) newBlocked = true: true for trueLayout D2, false for D. ActionModel (East): true. Trap (1, 1) with layout D: true; Trap (5, 3): false. Object, with trueHistory {o1 = D; o2 = D with agent (4, 3), East, Moved; o3 = D with agent (5, 3) and object (6, 3), East, Pushed} and mismatches = {one record with decisionStep 3}: newPosition (5, 3) -> true; (6, 3) -> false. With no mismatch records -> false.
+   - SC4 (the event life, driven by hand; plan 6.6 SC4). Build a C1 on true world D2 with no starting belief (its belief is D2, correct), a trueHistory vector holding one observation of D2, and Scorer scorer({E}, D2, &trueHistory) with E = F1 at (4, 3), BlockedToFree, step 2, id "E". Keep a std::vector<ActivationRecord> records with one record for E (eventId "E", type F1, scheduledStep 2, status Scheduled). Then, with view = viewOf(agent.state) after each change:
+       1. endPhaseA(view, 1); afterActivation(view, records, 1); afterDecide(view, Decision{true, Action::North, ""}) (committed.has is false).
+       2. push a CorrectionRecord {id 1, element Wall (4, 3), newBlocked true, oldBlocked true, status Consistent, stepConsistent 2} onto agent.state.corrections; endPhaseA(view, 2) -> run().falseAlarms == 1, run().claims == 1, events()[0].activated == false.
+       3. set agent.state.belief's wall at (4, 3) to false; records[0].status = Applied, records[0].applicationStep = 2; afterActivation(view, records, 2) -> activated, activationStep 2, active; afterDecide(view, an action Decision).
+       4. push record {id 2, Wall (4, 3), newBlocked true, oldBlocked false, Consistent, stepConsistent 3}; set the belief's (4, 3) to true; endPhaseA(view, 3) -> strictStep 3, endState Corrected, endStep 3, correctingId 2, falseAlarms still 1; afterActivation(view, records, 3); afterDecide(view, an action Decision).
+       5. set record 2's status to Rejected and the belief's (4, 3) back to false; endPhaseA(view, 4) -> endState None, active true, correctingId 0; afterActivation(view, records, 4); afterDecide(view, Decision{false, Action::North, "test"}) -> justifiedSafeStops == 1.
+       6. endFinalCheck(view); finish(view) -> endState None (Active at end of run), strictStep still 3, claims 2, falseAlarms 1, wrongAccepted 0, correctionStatus empty.
+     (Changing the agent's state by hand here is test set-up only: the scorer itself never writes to the agent.)
+   - SC5 (the demonstration experiment: the same runs as FR2, with the scores from runWithFaults). Exactly these values, for every event and run, C1 and C0 (activated = activationStep, "-" = none / not activated; end state "Active" = EndState::None with activated true; Corrected/Overwritten with endStep; status = correctionStatus; opportunityStep is NOT checked in 4d):
+         event       cond  activated  revealing  mismatch  strict  end state          status
+         500000-1-1  C1    4          0          -         -       Active             -
+         500000-1-2  C1    6          0          -         -       Active             -
+         500000-1-3  C1    10         0          -         -       Active             -
+         500000-1-1  C0    4          0          -         -       Overwritten 4      -
+         500000-1-2  C0    6          0          -         -       Active             -
+         500000-1-3  C0    10         0          -         -       Active             -
+         500000-2-1  C1    2          0          -         -       Active             -
+         500000-2-2  C1    9          1          10        10      Corrected 10       CONSISTENT
+         500000-2-3  C1    10         0          -         -       Active             -
+         500000-2-1  C0    2          0          -         -       Overwritten 2      -
+         500000-2-2  C0    9          0          -         -       Overwritten 10     -
+         500000-2-3  C0    10         0          -         -       Active             -
+         500001-1-1  C1    4          0          -         -       Active             -
+         500001-1-2  C1    6          0          -         -       Active             -
+         500001-1-3  C1    -          -          -         -       (not activated)    -
+         500001-1-1  C0    4          0          -         -       Overwritten 4      -
+         500001-1-2  C0    6          0          -         -       Overwritten 6      -
+         500001-1-3  C0    15         0          -         -       Overwritten 15     -
+         500001-2-1  C1    2          0          -         -       Active             -
+         500001-2-2  C1    4          1          12        12      Corrected 12       VERIFIED
+         500001-2-3  C1    10         0          -         -       Active             -
+         500001-2-1  C0    2          0          -         -       Overwritten 2      -
+         500001-2-2  C0    4          0          -         -       Overwritten 4      -
+         500001-2-3  C0    10         0          -         -       Active             -
+         500002-1-1  C1    3          0          -         -       Active             -
+         500002-1-2  C1    6          0          -         -       Active             -
+         500002-1-3  C1    7          0          -         -       Active             -
+         500002-1-1  C0    3          0          -         -       Active             -
+         500002-1-2  C0    6          0          -         -       Active             -
+         500002-1-3  C0    7          0          -         -       Overwritten 7      -
+         500002-2-1  C1    5          0          -         -       Active             -
+         500002-2-2  C1    8          0          -         -       Active             -
+         500002-2-3  C1    12         1          15        15      Corrected 15       VERIFIED
+         500002-2-1  C0    5          0          -         -       Active             -
+         500002-2-2  C0    8          0          -         -       Active             -
+         500002-2-3  C0    12         0          -         -       Overwritten 12     -
+         500003-1-1  C1    9          1          10        10      Corrected 10       VERIFIED
+         500003-1-2  C1    2          0          -         -       Active             -
+         500003-1-3  C1    8          0          -         -       Active             -
+         500003-1-1  C0    11         0          -         -       Overwritten 11     -
+         500003-1-2  C0    2          0          -         -       Active             -
+         500003-1-3  C0    8          0          -         -       Overwritten 8      -
+         500003-2-1  C1    1          1          8         8       Corrected 8        REJECTED
+         500003-2-2  C1    9          0          -         -       Active             -
+         500003-2-3  C1    10         1          12        12      Corrected 12       VERIFIED
+         500003-2-1  C0    1          0          -         -       Active             -
+         500003-2-2  C0    9          0          -         -       Active             -
+         500003-2-3  C0    10         0          -         -       Active             -
+
+         run       cond  justified  mismatches  no-cause  labels-correct  labels-scored  claims  false-alarms  wrong-accepted
+         500000-1  C1    0          0           0         0               0              0       0             0
+         500000-1  C0    0          0           0         0               0              0       0             0
+         500000-2  C1    0          1           0         1               1              1       0             0
+         500000-2  C0    0          0           0         0               0              0       0             0
+         500001-1  C1    0          0           0         0               0              0       0             0
+         500001-1  C0    0          0           0         0               0              0       0             0
+         500001-2  C1    0          1           0         1               1              1       0             0
+         500001-2  C0    0          0           0         0               0              0       0             0
+         500002-1  C1    0          0           0         0               0              0       0             0
+         500002-1  C0    0          0           0         0               0              0       0             0
+         500002-2  C1    0          1           0         1               1              1       0             0
+         500002-2  C0    0          0           0         0               0              0       0             0
+         500003-1  C1    0          1           0         1               1              1       0             0
+         500003-1  C0    0          0           0         0               0              0       0             0
+         500003-2  C1    0          2           0         2               2              2       0             0
+         500003-2  C0    0          0           0         0               0              0       0             0
+     Use one check per (run, condition) for the event values, and one per (run, condition) for the run values.
+   - SC6: with the scorer attached, FR1-FR6 and FI7-FI8 still pass unchanged (they run through runWithFaults), and the agent's activationHook is empty after every run. No new code is needed beyond running the existing tests; add one check that FR1's run result lines are unchanged with the scorer present (compare with runSingleAgent as FR1 does).
+
+From the start:
+- every new file has the three-part header (Purpose / "Introduced in Stage 4" / Architecture: experimenter code, reads only, never writes to an agent) and the beginner comments above;
+- functions under about 40 lines; files under about 200 lines (split and say so); one statement per line; braces always;
+- no exceptions, no assertions, no inheritance, no randomness.
+
+Do not change any Stage 1-3 file, or any 4a/4b file; in 4c files, change only fault_run.* as described. Do not create scratch, debug or temporary files, and build only in CLion's cmake-build-debug. Do not rename, move, or delete any file. Do not edit anything in docs/, .github/, .cursor/, LICENSE, .gitignore or results/ (except appending the handoff note).
+
+If an expected value above does not match, STOP and report the actual value and what you found. Never change an expected value, and never change C1, C0 or the scoring rules to make a value match.
+
+When finished:
+- rebuild (rule 2g) and report the exact test result line (all earlier checks must still pass);
+- run the ai_hologram program and confirm its output is unchanged (102 lines, 94 non-empty);
+- append a handoff note (rule 2f) saying honestly what you built and ran;
+- do not commit.
