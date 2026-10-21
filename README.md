@@ -8,6 +8,8 @@
 
 **Current status: Stage 4 — fault injection and measurement.** The project contains a 10×10 grid world (Stage 1), a world model and comparison (Stage 2), and C1, the competent single agent, with C0, a naive reference (Stage 3). Stage 4 adds the experiment's measuring instrument: seeded generation of layouts and fault-event lists, fault injection into a reasoner's beliefs or reasoning exactly as the frozen Experiment 1 protocol defines, scoring of detection and correction from the agent's own records, and CSV output. Demonstrations use demonstration seeds only. **No two-agent reasoning exists, and no experiments have been run.** Files in `results/` are organizational examples, not experimental findings.
 
+**Archived on October 20, 2026.** Stage 4 code is complete (618 checks, 0 failures; commit `89ea9b6`), but the Stage 4 completion gate and the `stage-4` tag were **not** done. The owner decided to rebuild the C++ code from the beginning in a new repository, under improved rules agreed with ChatGPT; the frozen Experiment 1 protocol (unchanged), its validation, the design inputs and the reference implementations are to be carried there with recorded provenance. Using a re-implemented C1 as the experiment's baseline requires a separately approved migration addendum (M1); this notice does not record that approval. This repository is the permanent record: it is never changed, rewritten or deleted.
+
 ## Where to start reading
 
 - [Project brief](docs/AI_Hologram_Project_Brief_v1.1.txt)

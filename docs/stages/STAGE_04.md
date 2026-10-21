@@ -853,19 +853,28 @@ One prompt file per sub-stage (`stage_4a_prompt.txt` … `stage_4f_prompt.txt`),
 
 ---
 
-## 12. What actually happened (filled in by the owner at the end)
+## 12. What actually happened (filled in at the close of this repository)
 
 ```
 Owner approval of IE-1: 2026-10-20, "yes I approve" (after Claude's plain explanation)
 Owner approval of D-038: 2026-10-20, "yes I approve" (same message)
 Owner approval of v1.2.1 (D-042 to D-045, SC2): 2026-10-20, rule by rule, after scenarios in his own terms (see the Status row)
-Date completed:
-Commit tagged stage-4:
-Total number of checks in the final test run:
-Did everything go as planned?
-```
 
----
+Sub-stages completed and committed (each reviewed by Claude, with a fresh build and a
+deliberate failure check whose exact failures were predicted in advance, except 4f, which has none):
+  4a 45c6b44 (390 checks)   4b cfe68ff (408)   4c b7aba54 (485)
+  4d 617153d (537)          4e 2221201 (593)   4f 89ea9b6 (618)
+Final state: 618 checks, 0 failures; CTest passes; the program output equals Section 5
+  exactly (170 lines); the fresh-build check (step 8) was run by the owner after 4f.
+
+NOT DONE: the Stage 4 completion gate (step 9) and the `stage-4` tag (step 10).
+  Stage 4 is therefore code-complete but NOT formally completed in this repository.
+
+Why: on October 20, 2026 the owner decided to start a new repository, rebuilding the C++
+  code from the beginning under improved rules agreed with ChatGPT (NEW_REPOSITORY_RULES, v2).
+  This repository is kept unchanged as the permanent record (archived, never deleted or rewritten).
+  The Stage 4 reference implementation is preserved in docs/stage4_reference/.
+```
 
 ## 13. Instructions to Cursor for this stage
 

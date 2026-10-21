@@ -1,0 +1,38 @@
+Output of gen_c.py as run once on October 20, 2026, copied exactly from the console
+(with the Stage 4 reference as it was before plan v1.1.1; see README.md).
+
+run 900000-1 C1: Step limit world steps 100 decision steps 100 safe stops 0 evals 9604
+   900000-1-1 F4 sched 1: Activated at its scheduled step at step 1
+   900000-1-2 F5 sched 2: Activated after deferral at step 9
+   900000-1-3 F3 sched 8: Activated at its scheduled step at step 8
+run 900000-1 C0: Step limit world steps 100 decision steps 100 safe stops 0 evals 8800
+   900000-1-1 F4 sched 1: Activated at its scheduled step at step 1
+   900000-1-2 F5 sched 2: Activated after deferral at step 12
+   900000-1-3 F3 sched 8: Activated at its scheduled step at step 8
+run 900000-2 C1: Success world steps 18 decision steps 19 safe stops 1 evals 572
+   900000-2-1 F2 sched 1: Activated at its scheduled step at step 1
+   900000-2-2 F2 sched 7: Activated at its scheduled step at step 7
+   900000-2-3 F2 sched 8: Activated at its scheduled step at step 8
+run 900000-2 C0: Step limit world steps 100 decision steps 100 safe stops 0 evals 380
+   900000-2-1 F2 sched 1: Activated at its scheduled step at step 1
+   900000-2-2 F2 sched 7: Activated at its scheduled step at step 7
+   900000-2-3 F2 sched 8: Activated at its scheduled step at step 8
+run 900001-1 C1: Success world steps 23 decision steps 23 safe stops 0 evals 306
+   900001-1-1 F1 sched 1: Activated at its scheduled step at step 1
+   900001-1-2 F5 sched 4: Activated after deferral at step 13
+   900001-1-3 F4 sched 10: Activated at its scheduled step at step 10
+run 900001-1 C0: Success world steps 19 decision steps 19 safe stops 0 evals 216
+   900001-1-1 F1 sched 1: Activated at its scheduled step at step 1
+   900001-1-2 F5 sched 4: Activated after deferral at step 13
+   900001-1-3 F4 sched 10: Activated at its scheduled step at step 10
+crashes {}
+pooled outcomes {'Step limit': 46, 'Success': 105, 'Stopped -- unresolved': 9}
+  ('F1', 'Activated at its scheduled step') 91
+  ('F1', 'Not activated: not applicable at the scheduled step') 5
+  ('F2', 'Activated at its scheduled step') 96
+  ('F3', 'Activated at its scheduled step') 96
+  ('F4', 'Activated at its scheduled step') 94
+  ('F4', 'Not activated: run ended before the scheduled step') 2
+  ('F5', 'Activated after deferral') 70
+  ('F5', 'Activated at its scheduled step') 11
+  ('F5', 'Not activated: deferred, never applicable') 15
